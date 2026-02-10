@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../lib/subabase';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Loader2, Leaf } from 'lucide-react'; 
 import './Login.css';
@@ -19,19 +19,8 @@ const Login = () => {
     setLoading(true);
     setError('');
 
-    // --- TEMPORARY DEV MODE ---
-    // Since we haven't set up the database yet, this allows you to see the UI.
-    // Remove this block once Supabase is connected.
-    if (formData.email === 'admin@test.com') {
-        navigate('/admin'); return;
-    } else if (formData.email === 'caterer@test.com') {
-        navigate('/caterer'); return;
-    } else if (formData.email === 'student@test.com') {
-        navigate('/student'); return;
-    }
-    // --------------------------
-
     try {
+      // 1. Authenticate with Supabase Auth (Checks email/password)
       const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
@@ -39,11 +28,30 @@ const Login = () => {
 
       if (authError) throw authError;
 
-      // Logic to fetch role will go here later
-      navigate('/student'); // Default fallback
+      // 2. Fetch the User's Role from the 'profiles' table
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role, mess_name')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) {
+        throw new Error("Profile not found. Please contact admin.");
+      }
+
+      // 3. Redirect based on Role
+      if (profile.role === 'admin') {
+        navigate('/admin');
+      } else if (profile.role === 'caterer') {
+        // We pass the mess name (e.g., 'Arora') to the dashboard so they only see their data
+        navigate('/caterer', { state: { messName: profile.mess_name } });
+      } else {
+        navigate('/student');
+      }
 
     } catch (err) {
-      setError(err.message);
+      console.error(err);
+      setError(err.message || 'Failed to login');
     } finally {
       setLoading(false);
     }
@@ -101,7 +109,7 @@ const Login = () => {
         </form>
 
         <div className="footer-links">
-            <p>Login as <span onClick={() => setFormData({email: 'admin@test.com', password: '123'})}>Admin</span>, <span onClick={() => setFormData({email: 'caterer@test.com', password: '123'})}>Caterer</span>, or <span onClick={() => setFormData({email: 'student@test.com', password: '123'})}>Student</span> (Demo)</p>
+           <a href="#">Forgot Password?</a>
         </div>
       </div>
     </div>

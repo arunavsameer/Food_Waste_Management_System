@@ -1,0 +1,22 @@
+:root {
+  /* Colors extracted from EcoPlate screenshots */
+  --primary-green: #2ecc71;  /* The "Impact Score" green */
+  --primary-blue: #6c5ce7;   /* The "Eat or Skip" purple/blue */
+  --bg-gray: #f8f9fa;        /* Dashboard background */
+  --text-dark: #2d3436;
+  --text-gray: #636e72;
+  --danger: #e74c3c;         /* For "Bad" ratings */
+  --warning: #f1c40f;        /* For "Average" ratings */
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-gray);
+  color: var(--text-dark);
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}

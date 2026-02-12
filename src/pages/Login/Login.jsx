@@ -25,7 +25,6 @@ const Login = () => {
         email: formData.email,
         password: formData.password,
       });
-
       if (authError) throw authError;
 
       // 2. Fetch the User's Role from the 'profiles' table

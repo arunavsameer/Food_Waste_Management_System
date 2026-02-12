@@ -23,8 +23,6 @@ function App() {
         
         {/* Protected Dashboard Routes */}
         <Route path="/student" element={<StudentDashboard />} />
-        
-        {/* We will replace these later */}
         <Route path="/caterer" element={<CatererDashboard />} />
         <Route path="/admin" element={<AdminDashboard />} />
       </Routes>

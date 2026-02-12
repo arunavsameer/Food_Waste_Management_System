@@ -4,6 +4,8 @@
 
 [imp] unify UI 
 
+[imp] auth req for /student page, else redirect to login page
+
 [change]  goto mess -> skipp mess 
 
 [feature] add dark mode feature

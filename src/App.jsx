@@ -20,10 +20,8 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
         
-        {/* Add this new route */}
-        <Route path="/update-password" element={<UpdatePassword />} />
-
         {/* Protected Dashboard Routes */}
+        <Route path="/update-password" element={<UpdatePassword />} />
         <Route path="/student" element={<StudentDashboard />} />
         <Route path="/caterer" element={<CatererDashboard />} />
         <Route path="/admin" element={<AdminDashboard />} />

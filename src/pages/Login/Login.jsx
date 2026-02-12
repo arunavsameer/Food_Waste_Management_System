@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { supabase } from '../../lib/subabase';
-import { useNavigate } from 'react-router-dom';
+import { supabase } from '../../lib/supabase';
+import { Link, useNavigate } from 'react-router-dom'; // Import Link
 import { User, Lock, Loader2, Leaf } from 'lucide-react'; 
 import './Login.css';
 
@@ -20,14 +20,14 @@ const Login = () => {
     setError('');
 
     try {
-      // 1. Authenticate with Supabase Auth (Checks email/password)
+      // 1. Authenticate with Supabase Auth
       const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
       });
       if (authError) throw authError;
 
-      // 2. Fetch the User's Role from the 'profiles' table
+      // 2. Fetch the User's Role from 'profiles'
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, mess_name')
@@ -42,7 +42,6 @@ const Login = () => {
       if (profile.role === 'admin') {
         navigate('/admin');
       } else if (profile.role === 'caterer') {
-        // We pass the mess name (e.g., 'Arora') to the dashboard so they only see their data
         navigate('/caterer', { state: { messName: profile.mess_name } });
       } else {
         navigate('/student');
@@ -60,7 +59,6 @@ const Login = () => {
     <div className="login-container">
       <div className="login-card">
         
-        {/* Brand Header */}
         <div className="brand-header">
           <div className="logo-wrapper">
              <Leaf className="logo-icon" size={28} />
@@ -108,7 +106,12 @@ const Login = () => {
         </form>
 
         <div className="footer-links">
-           <a href="#">Forgot Password?</a>
+           <Link to="/forgot-password">Forgot Password?</Link>
+        </div>
+
+        {/* Debug Feature Link */}
+        <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem', opacity: 0.6 }}>
+            <Link to="/register">Create Test Account (Debug)</Link>
         </div>
       </div>
     </div>

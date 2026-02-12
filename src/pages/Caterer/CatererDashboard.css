@@ -225,3 +225,43 @@ label {
 .dot.green { background: #28a745; }
 .dot.red { background: #e74c3c; }
 .dot.blue { background: #3498db; }
+
+/* Sidebar Collapse Logic */
+.sidebar {
+  width: 250px;
+  transition: width 0.3s ease;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar.collapsed {
+  width: 80px;
+  padding: 1.5rem 0.5rem;
+  align-items: center;
+}
+
+.sidebar.collapsed .brand h2,
+.sidebar.collapsed .nav-item span,
+.sidebar.collapsed .impact-card,
+.sidebar.collapsed .logout-btn span {
+  display: none;
+}
+
+/* Collapse Toggle Button (Matches Student Icons) */
+.collapse-btn {
+  background: none;
+  border: none;
+  color: #636e72;
+  cursor: pointer;
+  padding: 10px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* Ensure form card matches Student Feedback Card */
+.log-waste-container {
+  max-width: 800px;
+  margin: 0 auto;
+}

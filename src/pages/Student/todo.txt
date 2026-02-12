@@ -1,7 +1,9 @@
-calendar view and trends view -> dropdown option for bkfst, lunch & dinner, and default set by current time
+[imp] calendar view and trends view -> dropdown option for bkfst, lunch & dinner, and default set by current time
 
-link everything to backend -> view supabase API docs
+[imp] link everything to backend -> view supabase API docs
+
+[imp] unify UI 
 
 [change]  goto mess -> skipp mess 
 
-unify UI 
+[feature] add dark mode feature

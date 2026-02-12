@@ -10,8 +10,8 @@ const Register = () => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    role: 'student', // Default role
-    mess_name: '' // Only needed if role is caterer
+    role: 'student', 
+    mess_name: 'Arora' // Default for students
   });
   const [error, setError] = useState('');
 
@@ -25,7 +25,6 @@ const Register = () => {
     setError('');
 
     try {
-      // 1. Create Auth User
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -34,25 +33,25 @@ const Register = () => {
       if (authError) throw authError;
 
       if (authData.user) {
-        // 2. Insert into Profiles Table (Critical for your Login logic)
+        // Insert Profile with the selected MESS NAME
         const { error: profileError } = await supabase
           .from('profiles')
           .insert([
             {
-              id: authData.user.id, // Links profile to auth user
+              id: authData.user.id,
               role: formData.role,
-              mess_name: formData.role === 'caterer' ? formData.mess_name : null,
+              // Both Students and Caterers now need a mess_name
+              mess_name: formData.mess_name, 
               email: formData.email
             }
           ]);
 
         if (profileError) throw profileError;
 
-        alert('Test user created successfully! You can now login.');
+        alert('Account created! Please log in.');
         navigate('/');
       }
     } catch (err) {
-      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -62,23 +61,18 @@ const Register = () => {
   return (
     <div className="login-container" style={{ borderTop: '5px solid orange' }}>
       <div className="login-card">
-        
         <div className="brand-header">
            <ShieldAlert className="logo-icon" size={28} color="orange" />
            <h1>Debug Register</h1>
         </div>
-        <p className="welcome-text">Create test accounts for development</p>
+        <p className="welcome-text">Create account (Dev Mode)</p>
 
         <form onSubmit={handleRegister} className="login-form">
           <div className="input-group">
             <label>Email Address</label>
             <div className="input-wrapper">
               <User size={18} className="input-icon" />
-              <input 
-                type="email" name="email"
-                placeholder="test@college.edu" 
-                onChange={handleChange} required 
-              />
+              <input type="email" name="email" placeholder="test@college.edu" onChange={handleChange} required />
             </div>
           </div>
 
@@ -86,24 +80,14 @@ const Register = () => {
             <label>Password</label>
             <div className="input-wrapper">
               <Lock size={18} className="input-icon" />
-              <input 
-                type="password" name="password"
-                placeholder="Min 6 chars" 
-                onChange={handleChange} required 
-              />
+              <input type="password" name="password" placeholder="Min 6 chars" onChange={handleChange} required />
             </div>
           </div>
 
-          {/* Role Selection */}
           <div className="input-group">
             <label>Role</label>
             <div className="input-wrapper">
-              <select 
-                name="role" 
-                value={formData.role} 
-                onChange={handleChange}
-                style={{ width: '100%', padding: '10px', background: 'transparent', border: 'none', outline: 'none' }}
-              >
+              <select name="role" value={formData.role} onChange={handleChange} className="styled-select">
                 <option value="student">Student</option>
                 <option value="caterer">Caterer (Mess Owner)</option>
                 <option value="admin">Admin</option>
@@ -111,17 +95,17 @@ const Register = () => {
             </div>
           </div>
 
-          {/* Conditional Input for Caterer */}
-          {formData.role === 'caterer' && (
+          {/* Show Mess Selection for BOTH Students and Caterers */}
+          {(formData.role === 'student' || formData.role === 'caterer') && (
             <div className="input-group">
-              <label>Mess Name</label>
+              <label>{formData.role === 'student' ? 'Select Your Mess Subscription' : 'Mess Name'}</label>
               <div className="input-wrapper">
                 <Utensils size={18} className="input-icon" />
-                <input 
-                  type="text" name="mess_name"
-                  placeholder="e.g. Arora, Galav" 
-                  onChange={handleChange} required 
-                />
+                <select name="mess_name" value={formData.mess_name} onChange={handleChange} className="styled-select">
+                  <option value="Arora">Arora Mess</option>
+                  <option value="Sheela">Sheela Mess</option>
+                  <option value="Food Sutra">Food Sutra</option>
+                </select>
               </div>
             </div>
           )}
@@ -129,7 +113,7 @@ const Register = () => {
           {error && <div className="error-message">{error}</div>}
 
           <button type="submit" className="signin-btn" disabled={loading}>
-            {loading ? <Loader2 className="spinner" size={20} /> : 'Create Test User'}
+            {loading ? <Loader2 className="spinner" size={20} /> : 'Create Account'}
           </button>
         </form>
 

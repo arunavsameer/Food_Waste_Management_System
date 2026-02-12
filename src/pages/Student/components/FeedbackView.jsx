@@ -1,0 +1,103 @@
+import React, { useState } from 'react';
+
+const FeedbackView = ({ messName }) => {
+  const [rating, setRating] = useState(5);
+  const [comment, setComment] = useState('');
+
+  const getEmoji = (score) => {
+    if (score >= 9) return '🤩';
+    if (score >= 7) return '😋';
+    if (score >= 5) return '😐';
+    if (score >= 3) return '☹️';
+    return '🤬';
+  };
+
+  const getRatingColor = (score) => {
+    if (score >= 7) return '#2ecc71';
+    if (score >= 5) return '#f1c40f';
+    return '#e74c3c';
+  };
+
+  return (
+    <div className="feedback-container">
+      <div className="feedback-card" style={{ maxWidth: '500px' }}>
+        <h3 style={{ textAlign: 'center', marginBottom: '1.5rem' }}>How was your meal?</h3>
+        
+        <div className="form-row">
+          <div className="form-group">
+            <label>MESS (Assigned)</label>
+            <input type="text" value={messName || '...'} disabled className="read-only-input" />
+          </div>
+          <div className="form-group">
+            <label>MEAL TYPE</label>
+            <select className="styled-select">
+              <option>Lunch</option>
+              <option>Dinner</option>
+              <option>Breakfast</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="rating-section" style={{ textAlign: 'center', padding: '20px 0' }}>
+          <div style={{ marginBottom: '15px' }}>
+            <div style={{ fontSize: '4rem', lineHeight: '1' }}>{getEmoji(Number(rating))}</div>
+            <div style={{ 
+              fontSize: '2rem', 
+              fontWeight: '800', 
+              color: getRatingColor(rating),
+              marginTop: '10px'
+            }}>
+              {rating}/10
+            </div>
+          </div>
+
+          <input 
+            type="range" min="1" max="10" 
+            value={rating} onChange={(e) => setRating(e.target.value)} 
+            className="slider"
+            style={{ accentColor: getRatingColor(rating) }}
+          />
+          
+          <div className="slider-labels">
+            <span>Terrible</span>
+            <span>Okay</span>
+            <span>Delicious</span>
+          </div>
+        </div>
+
+        <div className="comment-section">
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#b2bec3' }}>ADDITIONAL COMMENTS</label>
+                <span style={{ fontSize: '0.75rem', color: comment.length > 130 ? '#e74c3c' : '#b2bec3' }}>
+                    {comment.length}/150
+                </span>
+            </div>
+            <textarea 
+                className="styled-textarea"
+                rows="3"
+                maxLength="150"
+                placeholder="What did you like or dislike?"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '12px',
+                    border: '1px solid #e1e4e8',
+                    resize: 'none',
+                    fontFamily: 'inherit',
+                    fontSize: '0.95rem',
+                    backgroundColor: '#f8f9fa'
+                }}
+            />
+        </div>
+
+        <button className="submit-btn-dark" style={{ marginTop: '25px', backgroundColor: getRatingColor(rating) }}>
+          Submit Feedback
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default FeedbackView;

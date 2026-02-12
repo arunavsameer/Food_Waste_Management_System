@@ -9,6 +9,11 @@ import UpdatePassword from './pages/Login/UpdatePassword';
 import StudentDashboard from './pages/Student/StudentDashboard';
 //(we haven't built them yet)
 const CatererDashboard = () => <h2>Caterer Portal (Waste Entry)</h2>;
+import UpdatePassword from './pages/Login/UpdatePassword'; // <--- Import this
+import CatererDashboard from "./pages/Caterer/CatererDashboard";
+
+// Placeholder components
+const StudentDashboard = () => <h2>Student Dashboard (Calendar View)</h2>;
 const AdminDashboard = () => <h2>Admin Dashboard (Analytics)</h2>;
 
 function App() {

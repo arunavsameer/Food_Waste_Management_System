@@ -1,0 +1,7 @@
+calendar view and trends view -> dropdown option for bkfst, lunch & dinner, and default set by current time
+
+link everything to backend -> view supabase API docs
+
+[change]  goto mess -> skipp mess 
+
+unify UI 

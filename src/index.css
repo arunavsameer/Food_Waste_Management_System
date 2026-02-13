@@ -33,10 +33,10 @@
   --text-muted: #a0a0a0;
   --border-color: #333333;
 
-  /* Status Colors (Dark Mode - Deep/Muted so white text pops) */
-  --bg-good: rgba(39, 174, 96, 0.25);  /* Dark Transparent Green */
-  --bg-mid:  rgba(243, 156, 18, 0.25); /* Dark Transparent Orange/Yellow */
-  --bg-bad:  rgba(192, 57, 43, 0.25);  /* Dark Transparent Red */
+  /* Status Colors (Dark Mode) */
+  --bg-good: rgba(39, 174, 96, 0.25);
+  --bg-mid:  rgba(243, 156, 18, 0.25);
+  --bg-bad:  rgba(192, 57, 43, 0.25);
 
   --primary-green: #27ae60;   
   --primary-blue: #7d73e6;
@@ -59,4 +59,78 @@ body {
 /* Global Smooth Transition */
 div, nav, button, input, select, textarea, aside, .card, .login-card {
   transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* =========================================
+   SHARED COMPONENTS (Used Everywhere)
+   ========================================= */
+
+/* 1. Base Card Style */
+.card-base, .login-card, .feedback-card, .menu-card, .calendar-section {
+  background: var(--bg-card);
+  box-shadow: var(--shadow);
+  border-radius: 16px;
+  border: 1px solid transparent; /* Placeholder for dark mode border */
+}
+
+[data-theme='dark'] .card-base, 
+[data-theme='dark'] .login-card, 
+[data-theme='dark'] .feedback-card,
+[data-theme='dark'] .menu-card,
+[data-theme='dark'] .calendar-section {
+  border-color: var(--border-color);
+}
+
+/* 2. Base Inputs (Text, Email, Password) */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+.read-only-input,
+.styled-textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-input);
+  color: var(--text-main);
+  border-radius: 10px;
+  font-size: 1rem;
+  outline: none;
+  font-family: inherit;
+  transition: all 0.2s ease;
+}
+
+/* 3. Base Select (Modern Dropdown) */
+.styled-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  width: 100%;
+  padding: 12px 40px 12px 15px;
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  font-size: 1rem; /* Consistent font size */
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+  
+  /* Default Arrow (Gray) - Overridden in specific files */
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  background-size: 16px;
+}
+
+.styled-select:hover {
+  background-color: var(--bg-hover);
+}
+
+/* 4. Labels */
+label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main); /* Changed from muted to main for better contrast */
+  margin-bottom: 0.5rem;
 }

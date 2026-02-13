@@ -13,6 +13,8 @@ const FeedbackView = ({ messName }) => {
   };
 
   const getRatingColor = (score) => {
+    // Using CSS variables would be better, but for dynamic slider colors we keep this logic
+    // Just ensuring the text color pops against the dark bg
     if (score >= 7) return '#2ecc71';
     if (score >= 5) return '#f1c40f';
     return '#e74c3c';
@@ -67,32 +69,24 @@ const FeedbackView = ({ messName }) => {
 
         <div className="comment-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: '700', color: '#b2bec3' }}>ADDITIONAL COMMENTS</label>
-                <span style={{ fontSize: '0.75rem', color: comment.length > 130 ? '#e74c3c' : '#b2bec3' }}>
+                <label>Comments</label>
+                <span style={{ fontSize: '0.75rem', color: comment.length > 130 ? 'var(--danger)' : 'var(--text-muted)' }}>
                     {comment.length}/150
                 </span>
             </div>
+            
+            {/* REMOVED INLINE STYLES HERE. Relies on CSS class now. */}
             <textarea 
                 className="styled-textarea"
-                rows="3"
+                rows="4"
                 maxLength="150"
                 placeholder="What did you like or dislike?"
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                style={{
-                    width: '100%',
-                    padding: '12px',
-                    borderRadius: '12px',
-                    border: '1px solid #e1e4e8',
-                    resize: 'none',
-                    fontFamily: 'inherit',
-                    fontSize: '0.95rem',
-                    backgroundColor: '#f8f9fa'
-                }}
             />
         </div>
 
-        <button className="submit-btn-dark" style={{ marginTop: '25px', backgroundColor: getRatingColor(rating) }}>
+        <button className="submit-btn-dark" style={{ marginTop: '25px', backgroundColor: getRatingColor(rating), color: 'white' }}>
           Submit Feedback
         </button>
       </div>

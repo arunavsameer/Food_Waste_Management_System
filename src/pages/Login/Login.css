@@ -5,21 +5,16 @@
   align-items: center;
   justify-content: center;
   background-color: var(--bg-body);
-  padding: 20px; /* Prevent card touching edges on mobile */
-  transition: background-color 0.3s ease;
+  padding: 20px;
 }
 
-/* Card */
+/* Card Specifics (Layout only) */
 .login-card {
-  background: var(--bg-card);
   padding: 2.5rem;
   width: 100%;
   max-width: 400px;
-  border-radius: 16px;
-  box-shadow: var(--shadow);
   text-align: center;
-  border: 1px solid var(--border-color);
-  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  /* Background/Shadow handled by Global */
 }
 
 /* Brand Section */
@@ -52,18 +47,10 @@
   font-size: 0.9rem;
 }
 
-/* Inputs */
+/* Input Specifics for Login (Icons) */
 .input-group {
   margin-bottom: 1.2rem;
   text-align: left;
-}
-
-.input-group label {
-  display: block;
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--text-main);
-  margin-bottom: 0.5rem;
 }
 
 .input-wrapper {
@@ -79,26 +66,22 @@
   pointer-events: none;
 }
 
-.input-wrapper input, 
-.styled-select {
-  width: 100%;
-  padding: 12px 12px 12px 40px;
-  border: 1px solid var(--border-color);
-  background-color: var(--bg-input);
-  color: var(--text-main);
-  border-radius: 10px;
-  font-size: 1rem;
-  transition: all 0.2s;
-  outline: none;
+/* Add padding for the icon */
+.input-wrapper input {
+  padding-left: 40px; 
 }
 
+/* Purple Theme Focus States */
 .input-wrapper input:focus,
 .styled-select:focus {
   border-color: var(--primary-blue);
   box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.2);
 }
 
-.styled-select { padding-left: 12px; }
+/* Purple Chevron for Dropdown */
+.styled-select {
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236c5ce7' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+}
 
 /* Button */
 .signin-btn {
@@ -116,7 +99,7 @@
 }
 
 .signin-btn:hover { opacity: 0.9; transform: translateY(-1px); }
-.signin-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.signin-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Error Message */
 .error-message {
@@ -133,21 +116,11 @@
   font-size: 0.85rem;
   color: var(--text-muted);
 }
-.footer-links a {
-  color: var(--primary-blue);
-  text-decoration: none;
-  font-weight: 600;
-}
+.footer-links a { color: var(--primary-blue); text-decoration: none; font-weight: 600; }
 .footer-links a:hover { text-decoration: underline; }
 
-/* ===========================
-   MOBILE RESPONSIVENESS
-   =========================== */
+/* Mobile */
 @media (max-width: 480px) {
-  .login-card {
-    padding: 1.5rem; /* Reduce padding to save space */
-  }
-  .brand-header h1 {
-    font-size: 1.5rem;
-  }
+  .login-card { padding: 1.5rem; }
+  .brand-header h1 { font-size: 1.5rem; }
 }

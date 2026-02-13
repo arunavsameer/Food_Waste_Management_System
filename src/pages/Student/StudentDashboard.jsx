@@ -35,8 +35,10 @@ const StudentDashboard = () => {
     <div className="dashboard-container">
       {/* Sidebar */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-        <div className="brand">
-          {isSidebarOpen ? <h2>EcoPlate</h2> : <h2 style={{fontSize: '1.5rem'}}>🌱</h2>}
+        <div className="brand" style={{ justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
+          {/* Only show Title if Open. If Closed, show NOTHING here, just the button below. */}
+          {isSidebarOpen && <h2>EcoPlate</h2>}
+          
           <button className="toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>

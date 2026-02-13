@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, MessageSquare, TrendingUp, LogOut, Menu, X } from 'lucide-react';
+import { Calendar, MessageSquare, TrendingUp, LogOut, Menu, X, Check, AlertCircle } from 'lucide-react'; // Added AlertCircle
 import { useNavigate } from 'react-router-dom';
 import './Student.css';
 
-// Import the sub-components
 import CalendarView from './components/CalendarView';
 import FeedbackView from './components/FeedbackView';
 import TrendsView from './components/TrendsView';
@@ -14,13 +13,21 @@ const StudentDashboard = () => {
   const [studentProfile, setStudentProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // UNIFIED TOAST STATE
+  const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        setStudentProfile(data);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          if (error) throw error;
+          setStudentProfile(data);
+        }
+      } catch (err) {
+        triggerToast('error', 'Failed to load profile');
       }
     };
     fetchProfile();
@@ -31,14 +38,39 @@ const StudentDashboard = () => {
     navigate('/');
   };
 
+  // GENERIC TOAST HANDLER
+  const triggerToast = (type, message) => {
+    setToast({ show: true, type, message });
+    
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      setToast((prev) => ({ ...prev, show: false }));
+    }, 3000);
+  };
+
+  // Called by FeedbackView on success
+  const handleFeedbackSuccess = () => {
+    setActiveTab('calendar');
+    triggerToast('success', 'Feedback submitted successfully!');
+  };
+
   return (
     <div className="dashboard-container">
+      
+      {/* DYNAMIC TOAST COMPONENT */}
+      {toast.show && (
+        <div className={`feedback-toast ${toast.type}`}>
+          <div className="toast-icon">
+            {toast.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
+          </div>
+          {toast.message}
+        </div>
+      )}
+
       {/* Sidebar */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
         <div className="brand" style={{ justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
-          {/* Only show Title if Open. If Closed, show NOTHING here, just the button below. */}
           {isSidebarOpen && <h2>EcoPlate</h2>}
-          
           <button className="toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
@@ -95,7 +127,15 @@ const StudentDashboard = () => {
 
         <div className="content-area">
           {activeTab === 'calendar' && <CalendarView messName={studentProfile?.mess_name} />}
-          {activeTab === 'feedback' && <FeedbackView messName={studentProfile?.mess_name} />}
+          
+          {/* Passed 'triggerToast' so FeedbackView can also show errors if needed */}
+          {activeTab === 'feedback' && (
+            <FeedbackView 
+              onSuccessfulSubmit={handleFeedbackSuccess} 
+              onError={(msg) => triggerToast('error', msg)} 
+            />
+          )}
+          
           {activeTab === 'trends' && <TrendsView />}
         </div>
       </main>

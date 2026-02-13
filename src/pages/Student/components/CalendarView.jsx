@@ -11,12 +11,6 @@ const CalendarView = ({ messName }) => {
     { day: 20, rating: 7.0, dish: 'Masala Dosa', status: 'mid' },
   ];
 
-  const getStatusColor = (status) => {
-    if (status === 'good') return '#d1fae5';
-    if (status === 'mid') return '#fef3c7';
-    return '#fee2e2';
-  };
-
   return (
     <div className="calendar-layout">
       <div className="calendar-section">
@@ -30,13 +24,17 @@ const CalendarView = ({ messName }) => {
           {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
             <div key={d} className="grid-header">{d}</div>
           ))}
+          
           {calendarDays.map((item, index) => (
-            <div key={index} className="calendar-cell" style={{ backgroundColor: getStatusColor(item.status) }}>
+            // Changed: Using className instead of inline style
+            <div key={index} className={`calendar-cell ${item.status}`}>
               <div className="date-num">{item.day}</div>
               <div className="rating-score">{item.rating}</div>
               <div className="dish-name">{item.dish}</div>
             </div>
           ))}
+          
+          {/* Empty Cells */}
           {[...Array(20)].map((_, i) => <div key={i} className="calendar-cell empty"></div>)}
         </div>
       </div>

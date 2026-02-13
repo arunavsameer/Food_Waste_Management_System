@@ -13,22 +13,23 @@ const TrendsView = () => {
     const log = myHistory.find(h => h.day === dayNum);
     
     if (log) {
-      let bgColor = '#fee2e2'; 
-      if (log.rating >= 7) bgColor = '#d1fae5'; 
-      else if (log.rating >= 5) bgColor = '#fef3c7'; 
+      // Determine class based on rating
+      let statusClass = 'bad';
+      if (log.rating >= 7) statusClass = 'good';
+      else if (log.rating >= 5) statusClass = 'mid';
 
       return (
-        <div key={dayNum} className="calendar-cell" style={{ backgroundColor: bgColor }}>
+        <div key={dayNum} className={`calendar-cell ${statusClass}`}>
           <div className="date-num">{dayNum}</div>
           <div className="rating-score">{log.rating}</div>
-          <div className="dish-name" style={{fontSize: '0.7rem', color: '#555'}}>{log.comment}</div>
+          <div className="dish-name">{log.comment}</div>
         </div>
       );
     } else {
       return (
-        <div key={dayNum} className="calendar-cell" style={{ backgroundColor: 'white', border: '1px solid #f0f0f0' }}>
-          <div className="date-num" style={{ color: '#ccc' }}>{dayNum}</div>
-          <div className="dish-name" style={{ marginTop: 'auto', color: '#ccc' }}>-</div>
+        <div key={dayNum} className="calendar-cell empty">
+          <div className="date-num">{dayNum}</div>
+          <div className="dish-name" style={{ marginTop: 'auto' }}>-</div>
         </div>
       );
     }
@@ -49,9 +50,9 @@ const TrendsView = () => {
 
       <div className="sidebar-widgets" style={{ flex: 1 }}>
         <div className="menu-card" style={{ textAlign: 'center' }}>
-            <Smile size={40} color="#2ecc71" style={{ marginBottom: '10px' }} />
-            <div style={{ fontSize: '2rem', fontWeight: 'bold', color: '#2d3436' }}>6.5</div>
-            <p style={{ color: '#636e72', fontSize: '0.9rem' }}>Your Average Rating</p>
+            <Smile size={40} className="text-green-500" style={{ marginBottom: '10px', color: 'var(--primary-green)' }} />
+            <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>6.5</div>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Your Average Rating</p>
         </div>
         
         <div className="menu-card">

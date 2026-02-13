@@ -1,22 +1,62 @@
 :root {
-  /* Colors extracted from EcoPlate screenshots */
-  --primary-green: #2ecc71;  /* The "Impact Score" green */
-  --primary-blue: #6c5ce7;   /* The "Eat or Skip" purple/blue */
-  --bg-gray: #f8f9fa;        /* Dashboard background */
-  --text-dark: #2d3436;
-  --text-gray: #636e72;
-  --danger: #e74c3c;         /* For "Bad" ratings */
-  --warning: #f1c40f;        /* For "Average" ratings */
+  /* --- LIGHT THEME (Default) --- */
+  --bg-body: #f8f9fa;
+  --bg-card: #ffffff;
+  --bg-input: #ffffff;
+  --bg-hover: #f1f2f6;
+  
+  --text-main: #2d3436;
+  --text-muted: #636e72;
+  --border-color: #e1e4e8;
+
+  /* Status Colors (Light Mode - Pastels) */
+  --bg-good: #d1fae5;
+  --bg-mid:  #fef3c7;
+  --bg-bad:  #fee2e2;
+
+  --primary-green: #2ecc71;
+  --primary-blue: #6c5ce7;
+  --danger: #e74c3c;
+  --warning: #f1c40f;
+  
+  --shadow: 0 4px 15px rgba(0,0,0,0.05);
+}
+
+/* --- DARK THEME OVERRIDES --- */
+[data-theme='dark'] {
+  --bg-body: #121212;
+  --bg-card: #1e1e1e;
+  --bg-input: #2d2d2d;
+  --bg-hover: #333333;
+  
+  --text-main: #e0e0e0;
+  --text-muted: #a0a0a0;
+  --border-color: #333333;
+
+  /* Status Colors (Dark Mode - Deep/Muted so white text pops) */
+  --bg-good: rgba(39, 174, 96, 0.25);  /* Dark Transparent Green */
+  --bg-mid:  rgba(243, 156, 18, 0.25); /* Dark Transparent Orange/Yellow */
+  --bg-bad:  rgba(192, 57, 43, 0.25);  /* Dark Transparent Red */
+
+  --primary-green: #27ae60;   
+  --primary-blue: #7d73e6;
+  --danger: #ff6b6b;
+  --warning: #feca57;
+
+  --shadow: 0 4px 15px rgba(0,0,0,0.5);
 }
 
 body {
   margin: 0;
   font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
-  background-color: var(--bg-gray);
-  color: var(--text-dark);
-  -webkit-font-smoothing: antialiased;
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-* {
-  box-sizing: border-box;
+* { box-sizing: border-box; }
+
+/* Global Smooth Transition */
+div, nav, button, input, select, textarea, aside, .card, .login-card {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }

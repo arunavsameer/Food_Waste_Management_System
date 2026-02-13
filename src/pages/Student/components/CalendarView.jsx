@@ -1,19 +1,41 @@
 import React, { useState } from 'react';
+import { CheckCircle } from 'lucide-react'; 
 
 const CalendarView = ({ messName }) => {
-  // Helper: Get Meal based on current time
+  // --- 1. Calendar Data Logic (Views CURRENT Meal) ---
   const getCurrentMealType = () => {
     const hour = new Date().getHours();
-    if (hour < 11) return 'Breakfast'; // Before 11 AM
-    if (hour < 16) return 'Lunch';     // 11 AM - 4 PM
-    return 'Dinner';                   // After 4 PM
+    if (hour < 11) return 'Breakfast';
+    if (hour < 16) return 'Lunch';
+    return 'Dinner';
   };
 
-  // Initialize state with the dynamic value
   const [mealType, setMealType] = useState(getCurrentMealType());
 
+  // --- 2. Skip Widget Logic (Defaults to NEXT Meal) ---
+  const getNextMealDefaults = () => {
+    const hour = new Date().getHours();
+    // Logic: Propose the upcoming meal relative to now
+    if (hour < 11) return { day: 'Today', meal: 'Lunch' };      // Morning -> Skip Lunch
+    if (hour < 16) return { day: 'Today', meal: 'Dinner' };     // Afternoon -> Skip Dinner
+    return { day: 'Tomorrow', meal: 'Breakfast' };              // Evening -> Skip Tmrw Breakfast
+  };
+
+  const [skipData, setSkipData] = useState(getNextMealDefaults());
+  const [isSkipped, setIsSkipped] = useState(false);
+
+  const handleSkipSubmit = () => {
+    setIsSkipped(true);
+    // Reset after 3 seconds
+    setTimeout(() => {
+      setIsSkipped(false);
+      // Optional: Reset to default after success?
+      // setSkipData(getNextMealDefaults()); 
+    }, 3000);
+  };
+
+  // Mock Data
   const allData = [
-    // --- LUNCH DATA ---
     { day: 14, type: 'Lunch', rating: 8.0, dish: 'Butter Chicken', status: 'good' },
     { day: 15, type: 'Lunch', rating: 8.0, dish: 'Dal Makhani', status: 'good' },
     { day: 16, type: 'Lunch', rating: 9.0, dish: 'Fried Rice', status: 'good' },
@@ -21,19 +43,9 @@ const CalendarView = ({ messName }) => {
     { day: 18, type: 'Lunch', rating: 4.5, dish: 'Biryani', status: 'bad' },
     { day: 19, type: 'Lunch', rating: 7.0, dish: 'Rajma Chawal', status: 'mid' },
     { day: 20, type: 'Lunch', rating: 7.0, dish: 'Masala Dosa', status: 'mid' },
-    
-    // --- DINNER DATA ---
     { day: 14, type: 'Dinner', rating: 5.0, dish: 'Mix Veg', status: 'mid' },
     { day: 15, type: 'Dinner', rating: 4.0, dish: 'Egg Curry', status: 'bad' },
     { day: 16, type: 'Dinner', rating: 8.5, dish: 'Paneer', status: 'good' },
-    { day: 17, type: 'Dinner', rating: 7.0, dish: 'Kofrta', status: 'mid' },
-    { day: 18, type: 'Dinner', rating: 8.0, dish: 'Chicken Curry', status: 'good' },
-    { day: 19, type: 'Dinner', rating: 6.5, dish: 'Aloo Gobi', status: 'mid' },
-    { day: 20, type: 'Dinner', rating: 5.5, dish: 'Bhindi', status: 'mid' },
-
-    // --- BREAKFAST DATA ---
-    { day: 14, type: 'Breakfast', rating: 9.0, dish: 'Poha', status: 'good' },
-    { day: 15, type: 'Breakfast', rating: 8.5, dish: 'Paratha', status: 'good' },
   ];
 
   const visibleDays = allData.filter(d => d.type === mealType);
@@ -42,6 +54,7 @@ const CalendarView = ({ messName }) => {
     <div className="calendar-layout">
       <div className="calendar-section">
         
+        {/* Header with Filter */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div className="legend" style={{ margin: 0 }}>
             <span className="dot green"></span> Good
@@ -61,6 +74,7 @@ const CalendarView = ({ messName }) => {
           </select>
         </div>
 
+        {/* Calendar Grid */}
         <div className="calendar-grid">
           {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
             <div key={d} className="grid-header">{d}</div>
@@ -81,18 +95,49 @@ const CalendarView = ({ messName }) => {
       </div>
 
       <div className="sidebar-widgets">
-        <div className="eat-skip-card">
-          <h3>Eat or Skip?</h3>
-          <p>Based on last week's average for <strong>{mealType}</strong>:</p>
-          <div className="rating-display">
-            <span className="big-score">
-              {mealType === 'Lunch' ? '8.2' : mealType === 'Dinner' ? '6.4' : '8.8'}
-            </span>
-            <span className="avg-label">Predicted Rating</span>
-          </div>
-          <button className="action-btn">
-            {mealType === 'Dinner' ? 'Maybe Skip' : 'Go to Mess'}
-          </button>
+        
+        {/* --- EAT OR SKIP WIDGET --- */}
+        <div className={`eat-skip-card ${isSkipped ? 'success-mode' : ''}`}>
+          
+          {isSkipped ? (
+            <div className="skip-success-content">
+              <div className="success-circle">
+                <CheckCircle size={50} strokeWidth={3} />
+              </div>
+              <h4>Skipped!</h4>
+              <p>Mess notified for {skipData.day} ({skipData.meal})</p>
+            </div>
+          ) : (
+            <>
+              <h3>Eat or Skip?</h3>
+              <p style={{marginBottom: '15px', opacity: 0.9}}>Mark your absence to reduce waste.</p>
+              
+              <div className="skip-inputs">
+                <select 
+                  className="widget-select"
+                  value={skipData.day}
+                  onChange={(e) => setSkipData({...skipData, day: e.target.value})}
+                >
+                  <option value="Today">Today</option>
+                  <option value="Tomorrow">Tomorrow</option>
+                </select>
+
+                <select 
+                  className="widget-select"
+                  value={skipData.meal}
+                  onChange={(e) => setSkipData({...skipData, meal: e.target.value})}
+                >
+                  <option value="Breakfast">Breakfast</option>
+                  <option value="Lunch">Lunch</option>
+                  <option value="Dinner">Dinner</option>
+                </select>
+              </div>
+
+              <button className="action-btn" onClick={handleSkipSubmit}>
+                Skip This Meal
+              </button>
+            </>
+          )}
         </div>
 
         <div className="menu-card">

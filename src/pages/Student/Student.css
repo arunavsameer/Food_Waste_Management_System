@@ -324,3 +324,91 @@
   from { opacity: 1; }
   to { opacity: 0; }
 }
+
+
+/* ===========================
+   WIDGET STYLES (Eat or Skip)
+   =========================== */
+
+.eat-skip-card {
+  background: linear-gradient(135deg, var(--primary-blue) 0%, #a29bfe 100%);
+  color: white; 
+  padding: 20px; 
+  border-radius: 16px;
+  text-align: center; 
+  box-shadow: var(--shadow);
+  position: relative; /* Needed for absolute positioning of success state if used */
+  min-height: 200px; /* Prevent height jumping during animation */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: background-color 0.3s ease;
+}
+
+.eat-skip-card h3 { margin: 0 0 5px 0; color: white; }
+.eat-skip-card p { font-size: 0.85rem; opacity: 0.9; margin-bottom: 0; color: white; }
+
+/* Inputs Row inside the Purple Card */
+.skip-inputs {
+  display: flex;
+  gap: 10px;
+  margin: 15px 0;
+}
+
+/* Semi-transparent Dropdowns */
+.widget-select {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 10px;
+  border-radius: 8px;
+  outline: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  appearance: none; /* Hide default arrow */
+  text-align: center;
+}
+
+.widget-select option {
+  color: #333; /* Dark text for the dropdown list itself */
+  background: white;
+}
+
+.widget-select:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Success State Styles */
+.eat-skip-card.success-mode {
+  background: #2ecc71; /* Switch entire card to Success Green */
+}
+
+.skip-success-content {
+  animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.success-circle {
+  width: 70px;
+  height: 70px;
+  background: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #2ecc71; /* Icon matches green background */
+  margin: 0 auto 15px auto;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.skip-success-content h4 {
+  font-size: 1.4rem;
+  margin: 0 0 5px 0;
+  font-weight: 800;
+}
+
+@keyframes popIn {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}

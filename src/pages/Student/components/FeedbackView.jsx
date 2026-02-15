@@ -36,7 +36,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
 
   const getRatingColor = (score) => {
     if (score >= 7) return '#2ecc71';
-    if (score >= 5) return '#f1c40f';
+    if (score >= 5) return '#edbd00';
     return '#e74c3c';
   };
 

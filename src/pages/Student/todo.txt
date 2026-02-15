@@ -11,3 +11,7 @@
 
 [UX] the skip meal background like weather app (sun for breakfast, Bright sun for lunch, and moon for breakfast)
 [UX] can add some form of greeting for th user
+
+[UX] calendar should be of all the mess, and complete calendar of the month, and dropdown for month
+
+

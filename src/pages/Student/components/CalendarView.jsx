@@ -1,24 +1,53 @@
 import React, { useState } from 'react';
-import { CheckCircle } from 'lucide-react'; 
+import { CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'; 
 
 const CalendarView = ({ messName }) => {
-  // --- 1. Calendar Data Logic (Views CURRENT Meal) ---
-  const getCurrentMealType = () => {
+  const [currentDate, setCurrentDate] = useState(new Date()); 
+  
+  const getRealTimeMeal = () => {
     const hour = new Date().getHours();
     if (hour < 11) return 'Breakfast';
     if (hour < 16) return 'Lunch';
     return 'Dinner';
   };
 
-  const [mealType, setMealType] = useState(getCurrentMealType());
+  const [mealType, setMealType] = useState(getRealTimeMeal());
 
-  // --- 2. Skip Widget Logic (Defaults to NEXT Meal) ---
+  // Calendar Math
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfWeek = new Date(year, month, 1).getDay(); 
+
+  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
+  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+  
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  // Mock Data
+  const allData = [
+    { day: 2, type: 'Lunch', rating: 7.5, dish: 'Paneer Tikka', status: 'good' },
+    { day: 5, type: 'Lunch', rating: 4.0, dish: 'Baingan', status: 'bad' },
+    { day: 8, type: 'Lunch', rating: 8.0, dish: 'Dal Makhani', status: 'good' },
+    { day: 12, type: 'Lunch', rating: 9.0, dish: 'Fried Rice', status: 'good' },
+    { day: 14, type: 'Lunch', rating: 6.0, dish: 'Chole', status: 'mid' },
+    { day: 15, type: 'Lunch', rating: 4.5, dish: 'Khichdi', status: 'bad' },
+    { day: 20, type: 'Lunch', rating: 7.0, dish: 'Rajma', status: 'mid' },
+    { day: 25, type: 'Lunch', rating: 8.5, dish: 'Chicken Curry', status: 'good' },
+    { day: 2, type: 'Dinner', rating: 5.0, dish: 'Mix Veg', status: 'mid' },
+    { day: 8, type: 'Dinner', rating: 3.5, dish: 'Tinda', status: 'bad' },
+    { day: 14, type: 'Dinner', rating: 8.0, dish: 'Egg Curry', status: 'good' },
+  ];
+
+  const getDataForDay = (dayNum) => {
+    return allData.find(d => d.day === dayNum && d.type === mealType);
+  };
+
   const getNextMealDefaults = () => {
     const hour = new Date().getHours();
-    // Logic: Propose the upcoming meal relative to now
-    if (hour < 11) return { day: 'Today', meal: 'Lunch' };      // Morning -> Skip Lunch
-    if (hour < 16) return { day: 'Today', meal: 'Dinner' };     // Afternoon -> Skip Dinner
-    return { day: 'Tomorrow', meal: 'Breakfast' };              // Evening -> Skip Tmrw Breakfast
+    if (hour < 11) return { day: 'Today', meal: 'Lunch' };
+    if (hour < 16) return { day: 'Today', meal: 'Dinner' };
+    return { day: 'Tomorrow', meal: 'Breakfast' };
   };
 
   const [skipData, setSkipData] = useState(getNextMealDefaults());
@@ -26,47 +55,34 @@ const CalendarView = ({ messName }) => {
 
   const handleSkipSubmit = () => {
     setIsSkipped(true);
-    // Reset after 3 seconds
-    setTimeout(() => {
-      setIsSkipped(false);
-      // Optional: Reset to default after success?
-      // setSkipData(getNextMealDefaults()); 
-    }, 3000);
+    setTimeout(() => setIsSkipped(false), 3000);
   };
-
-  // Mock Data
-  const allData = [
-    { day: 14, type: 'Lunch', rating: 8.0, dish: 'Butter Chicken', status: 'good' },
-    { day: 15, type: 'Lunch', rating: 8.0, dish: 'Dal Makhani', status: 'good' },
-    { day: 16, type: 'Lunch', rating: 9.0, dish: 'Fried Rice', status: 'good' },
-    { day: 17, type: 'Lunch', rating: 6.0, dish: 'Chole Bhature', status: 'mid' },
-    { day: 18, type: 'Lunch', rating: 4.5, dish: 'Biryani', status: 'bad' },
-    { day: 19, type: 'Lunch', rating: 7.0, dish: 'Rajma Chawal', status: 'mid' },
-    { day: 20, type: 'Lunch', rating: 7.0, dish: 'Masala Dosa', status: 'mid' },
-    { day: 14, type: 'Dinner', rating: 5.0, dish: 'Mix Veg', status: 'mid' },
-    { day: 15, type: 'Dinner', rating: 4.0, dish: 'Egg Curry', status: 'bad' },
-    { day: 16, type: 'Dinner', rating: 8.5, dish: 'Paneer', status: 'good' },
-  ];
-
-  const visibleDays = allData.filter(d => d.type === mealType);
 
   return (
     <div className="calendar-layout">
       <div className="calendar-section">
         
-        {/* Header with Filter */}
+        {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div className="legend" style={{ margin: 0 }}>
-            <span className="dot green"></span> Good
-            <span className="dot yellow" style={{ marginLeft: '10px' }}></span> Avg
-            <span className="dot red" style={{ marginLeft: '10px' }}></span> Bad
+          
+          {/* Left: Month Navigation */}
+          <div className="nav-header">
+            <button onClick={prevMonth} className="nav-arrow-btn">
+              <ChevronLeft size={20} />
+            </button>
+            <span className="month-label">
+              {monthNames[month]} {year}
+            </span>
+            <button onClick={nextMonth} className="nav-arrow-btn">
+              <ChevronRight size={20} />
+            </button>
           </div>
 
+          {/* Right: Meal Filter (Uses fixed width class) */}
           <select 
             value={mealType}
             onChange={(e) => setMealType(e.target.value)}
-            className="styled-select"
-            style={{ width: 'auto', padding: '8px 35px 8px 12px', fontSize: '0.9rem' }}
+            className="header-select"
           >
             <option value="Breakfast">Breakfast</option>
             <option value="Lunch">Lunch</option>
@@ -74,31 +90,47 @@ const CalendarView = ({ messName }) => {
           </select>
         </div>
 
-        {/* Calendar Grid */}
+        {/* LEGEND */}
+        <div className="legend">
+          <span className="dot green"></span> Good
+          <span className="dot yellow" style={{ marginLeft: '10px' }}></span> Avg
+          <span className="dot red" style={{ marginLeft: '10px' }}></span> Bad
+        </div>
+
+        {/* CALENDAR GRID */}
         <div className="calendar-grid">
           {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
             <div key={d} className="grid-header">{d}</div>
           ))}
           
-          {visibleDays.map((item, index) => (
-            <div key={index} className={`calendar-cell ${item.status}`}>
-              <div className="date-num">{item.day}</div>
-              <div className="rating-score">{item.rating}</div>
-              <div className="dish-name">{item.dish}</div>
-            </div>
+          {Array.from({ length: firstDayOfWeek }).map((_, i) => (
+             <div key={`empty-${i}`} className="calendar-cell empty"></div>
           ))}
-          
-          {[...Array(20 - visibleDays.length)].map((_, i) => (
-            <div key={i} className="calendar-cell empty"></div>
-          ))}
+
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const dayNum = i + 1;
+            const data = getDataForDay(dayNum);
+            const statusClass = data ? data.status : 'neutral';
+
+            return (
+              <div key={dayNum} className={`calendar-cell ${statusClass}`}>
+                <div className="date-num">{dayNum}</div>
+                {data ? (
+                  <>
+                    <div className="rating-score">{data.rating}</div>
+                    <div className="dish-name">{data.dish}</div>
+                  </>
+                ) : (
+                  <div className="dish-name" style={{ marginTop: 'auto', opacity: 0.3 }}>-</div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
       <div className="sidebar-widgets">
-        
-        {/* --- EAT OR SKIP WIDGET --- */}
         <div className={`eat-skip-card ${isSkipped ? 'success-mode' : ''}`}>
-          
           {isSkipped ? (
             <div className="skip-success-content">
               <div className="success-circle">
@@ -111,31 +143,18 @@ const CalendarView = ({ messName }) => {
             <>
               <h3>Eat or Skip?</h3>
               <p style={{marginBottom: '15px', opacity: 0.9}}>Mark your absence to reduce waste.</p>
-              
               <div className="skip-inputs">
-                <select 
-                  className="widget-select"
-                  value={skipData.day}
-                  onChange={(e) => setSkipData({...skipData, day: e.target.value})}
-                >
+                <select className="widget-select" value={skipData.day} onChange={(e) => setSkipData({...skipData, day: e.target.value})}>
                   <option value="Today">Today</option>
                   <option value="Tomorrow">Tomorrow</option>
                 </select>
-
-                <select 
-                  className="widget-select"
-                  value={skipData.meal}
-                  onChange={(e) => setSkipData({...skipData, meal: e.target.value})}
-                >
+                <select className="widget-select" value={skipData.meal} onChange={(e) => setSkipData({...skipData, meal: e.target.value})}>
                   <option value="Breakfast">Breakfast</option>
                   <option value="Lunch">Lunch</option>
                   <option value="Dinner">Dinner</option>
                 </select>
               </div>
-
-              <button className="action-btn" onClick={handleSkipSubmit}>
-                Skip This Meal
-              </button>
+              <button className="action-btn" onClick={handleSkipSubmit}>Skip This Meal</button>
             </>
           )}
         </div>

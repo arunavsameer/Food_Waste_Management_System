@@ -74,6 +74,87 @@
   color: var(--primary-green); font-weight: 600;
 }
 
+.nav-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  
+  /* Dimensions */
+  width: 220px;
+  height: 42px;     
+  padding: 0 5px;
+  
+  background: var(--bg-input);
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+  transition: all 0.2s ease;
+}
+
+.nav-arrow-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0; 
+}
+
+.nav-arrow-btn:hover {
+  background: var(--bg-hover);
+  color: var(--primary-green);
+  transform: scale(1.1);
+}
+
+.month-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  text-align: center;
+  flex: 1; 
+  white-space: nowrap;
+  padding: 0 5px;
+}
+
+/* 2. Dropdown Selector (Right) - Header Specific */
+.header-select {
+  /* FIXED WIDTH for "Breakfast" */
+  width: 160px;     
+  height: 42px;     /* Match .nav-header height */
+  
+  padding: 0 40px 0 15px; /* Right padding for the chevron arrow */
+  font-size: 1rem;
+  font-weight: 500;
+  
+  /* Inherit shared styles */
+  background-color: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  
+  /* Icon Configuration */
+  background-repeat: no-repeat;
+  background-position: right 15px center;
+  background-size: 16px;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232ecc71' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  
+  transition: all 0.2s ease;
+}
+
+.header-select:hover {
+  border-color: var(--primary-green);
+  background-color: var(--bg-hover);
+}
+
 /* Footer */
 .sidebar-footer { margin-top: auto; width: 100%; }
 .impact-card {
@@ -142,8 +223,21 @@
 .calendar-cell.good { background-color: var(--bg-good); border: 1px solid rgba(46, 204, 113, 0.3); }
 .calendar-cell.mid  { background-color: var(--bg-mid);  border: 1px solid rgba(241, 196, 15, 0.3); }
 .calendar-cell.bad  { background-color: var(--bg-bad);  border: 1px solid rgba(231, 76, 60, 0.3); }
-.calendar-cell.empty { background-color: var(--bg-hover); border: 1px dashed var(--border-color); }
 .calendar-cell:hover { transform: translateY(-2px); }
+.calendar-cell.empty {
+  visibility: hidden;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  pointer-events: none;
+}
+
+/* 2. NEUTRAL CELLS (Visible) - Real dates with no rating yet */
+.calendar-cell.neutral {
+  background-color: var(--bg-body); /* White in Light Mode */
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+}
 
 .calendar-cell .date-num { font-size: 0.8rem; color: var(--text-muted); }
 .calendar-cell .rating-score { font-size: 1.2rem; font-weight: 700; color: var(--text-main); text-align: center; }
@@ -325,7 +419,6 @@
   to { opacity: 0; }
 }
 
-
 /* ===========================
    WIDGET STYLES (Eat or Skip)
    =========================== */
@@ -333,26 +426,31 @@
 .eat-skip-card {
   background: linear-gradient(135deg, var(--primary-blue) 0%, #a29bfe 100%);
   color: white; 
-  padding: 20px; 
+  padding: 25px; /* Increased padding slightly */
   border-radius: 16px;
   text-align: center; 
   box-shadow: var(--shadow);
-  position: relative; /* Needed for absolute positioning of success state if used */
-  min-height: 200px; /* Prevent height jumping during animation */
+  position: relative;
+  
+  /* FIX: Enforce a fixed height so it never shrinks/grows */
+  height: 320px; 
+  
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: center; /* Keeps content vertically centered */
+  align-items: center;     /* Keeps content horizontally centered */
   transition: background-color 0.3s ease;
 }
 
-.eat-skip-card h3 { margin: 0 0 5px 0; color: white; }
-.eat-skip-card p { font-size: 0.85rem; opacity: 0.9; margin-bottom: 0; color: white; }
+.eat-skip-card h3 { margin: 0 0 10px 0; color: white; font-size: 1.4rem; }
+.eat-skip-card p { font-size: 0.9rem; opacity: 0.9; margin-bottom: 5px; color: white; max-width: 90%; }
 
 /* Inputs Row inside the Purple Card */
 .skip-inputs {
   display: flex;
   gap: 10px;
-  margin: 15px 0;
+  margin: 20px 0;
+  width: 100%; /* Ensure it spans full width */
 }
 
 /* Semi-transparent Dropdowns */
@@ -361,18 +459,19 @@
   background: rgba(255, 255, 255, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.3);
   color: white;
-  padding: 10px;
-  border-radius: 8px;
+  padding: 12px;
+  border-radius: 10px;
   outline: none;
   cursor: pointer;
   font-weight: 600;
-  font-size: 0.9rem;
-  appearance: none; /* Hide default arrow */
+  font-size: 0.95rem;
+  appearance: none;
   text-align: center;
+  transition: background 0.2s;
 }
 
 .widget-select option {
-  color: #333; /* Dark text for the dropdown list itself */
+  color: #333; 
   background: white;
 }
 
@@ -380,32 +479,56 @@
   background: rgba(255, 255, 255, 0.3);
 }
 
+/* Button */
+.action-btn {
+  background: white; 
+  color: var(--primary-blue);
+  border: none; 
+  padding: 14px 20px; 
+  border-radius: 10px;
+  font-weight: 700; 
+  width: 100%; 
+  margin-top: 5px; 
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.action-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
 /* Success State Styles */
 .eat-skip-card.success-mode {
-  background: #2ecc71; /* Switch entire card to Success Green */
+  background: #2ecc71; 
 }
 
 .skip-success-content {
   animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
 }
 
 .success-circle {
-  width: 70px;
-  height: 70px;
+  width: 80px;
+  height: 80px;
   background: white;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2ecc71; /* Icon matches green background */
-  margin: 0 auto 15px auto;
+  color: #2ecc71; 
+  margin-bottom: 20px;
   box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
 .skip-success-content h4 {
-  font-size: 1.4rem;
-  margin: 0 0 5px 0;
+  font-size: 1.6rem;
+  margin: 0 0 10px 0;
   font-weight: 800;
+  color: white;
 }
 
 @keyframes popIn {

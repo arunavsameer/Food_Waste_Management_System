@@ -92,7 +92,7 @@ const StudentDashboard = () => {
         </nav>
 
         <div className="sidebar-footer">
-          {isSidebarOpen && (
+          {/* {isSidebarOpen && (
             <div className="impact-card">
               <span className="leaf-icon">🌿</span>
               <div className="impact-text">
@@ -100,7 +100,7 @@ const StudentDashboard = () => {
                 <p>Waste reduced by 12%</p>
               </div>
             </div>
-          )}
+          )} */}
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
             {isSidebarOpen && <span>Logout</span>}

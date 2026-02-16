@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, MessageSquare, TrendingUp, LogOut, Menu, X, Check, AlertCircle } from 'lucide-react'; // Added AlertCircle
+import { Calendar, MessageSquare, TrendingUp, LogOut, Menu, X, Check, AlertCircle, Gamepad2 } from 'lucide-react'; // Added Gamepad2
 import { useNavigate } from 'react-router-dom';
 import './Student.css';
 
 import CalendarView from './components/CalendarView';
 import FeedbackView from './components/FeedbackView';
 import TrendsView from './components/TrendsView';
+import GameView from './components/GameView'; // Import the new component
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
@@ -14,7 +15,8 @@ const StudentDashboard = () => {
   const [activeTab, setActiveTab] = useState('calendar');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
-  // UNIFIED TOAST STATE
+  // --- GAMIFICATION STATE ---
+  const [credits, setCredits] = useState(1); // Give 1 free credit to start
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
 
   useEffect(() => {
@@ -38,26 +40,30 @@ const StudentDashboard = () => {
     navigate('/');
   };
 
-  // GENERIC TOAST HANDLER
   const triggerToast = (type, message) => {
     setToast({ show: true, type, message });
-    
-    // Auto-hide after 3 seconds
-    setTimeout(() => {
-      setToast((prev) => ({ ...prev, show: false }));
-    }, 3000);
+    setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
   };
 
-  // Called by FeedbackView on success
+  // Called when Feedback is submitted
   const handleFeedbackSuccess = () => {
+    // 1. Earn Credit
+    setCredits(prev => prev + 1);
+    
+    // 2. Show Special Toast
+    triggerToast('success', 'Feedback sent! +1 Game Credit 🪙');
+    
+    // 3. Switch to Game Tab to show the reward? (Optional, let's keep them on calendar for utility)
     setActiveTab('calendar');
-    triggerToast('success', 'Feedback submitted successfully!');
+  };
+
+  // Called when Game starts
+  const handleConsumeCredit = () => {
+    setCredits(prev => Math.max(0, prev - 1));
   };
 
   return (
     <div className="dashboard-container">
-      
-      {/* DYNAMIC TOAST COMPONENT */}
       {toast.show && (
         <div className={`feedback-toast ${toast.type}`}>
           <div className="toast-icon">
@@ -89,19 +95,15 @@ const StudentDashboard = () => {
             <TrendingUp size={20} />
             {isSidebarOpen && <span>My Trends</span>}
           </button>
+          {/* NEW GAME TAB */}
+          <button className={`nav-item ${activeTab === 'game' ? 'active' : ''}`} onClick={() => setActiveTab('game')}>
+            <Gamepad2 size={20} />
+            {isSidebarOpen && <span>Arcade Zone</span>}
+          </button>
         </nav>
 
         <div className="sidebar-footer">
-          {/* {isSidebarOpen && (
-            <div className="impact-card">
-              <span className="leaf-icon">🌿</span>
-              <div className="impact-text">
-                <h4>Impact Score</h4>
-                <p>Waste reduced by 12%</p>
-              </div>
-            </div>
-          )} */}
-          <button className="logout-btn" onClick={handleLogout} title="Logout">
+            <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
             {isSidebarOpen && <span>Logout</span>}
           </button>
@@ -115,8 +117,14 @@ const StudentDashboard = () => {
              {activeTab === 'calendar' && 'Mess Performance Calendar'}
              {activeTab === 'feedback' && 'Daily Meal Feedback'}
              {activeTab === 'trends' && 'My Feedback History'}
+             {activeTab === 'game' && 'Arcade 🎮'}
           </div>
           <div className="user-info">
+             {/* Show Credits in Header too */}
+            <div className="credit-badge" onClick={() => setActiveTab('game')} style={{cursor: 'pointer', marginRight: '15px', display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--bg-hover)', padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: 'bold', color: '#f1c40f'}}>
+                <span style={{fontSize: '1.2rem'}}>🪙</span> {credits}
+            </div>
+
             <div className="user-details">
               <span className="label">CURRENT MESS</span>
               <span className="value">{studentProfile?.mess_name || 'Loading...'}</span>
@@ -128,7 +136,6 @@ const StudentDashboard = () => {
         <div className="content-area">
           {activeTab === 'calendar' && <CalendarView messName={studentProfile?.mess_name} />}
           
-          {/* Passed 'triggerToast' so FeedbackView can also show errors if needed */}
           {activeTab === 'feedback' && (
             <FeedbackView 
               onSuccessfulSubmit={handleFeedbackSuccess} 
@@ -137,6 +144,11 @@ const StudentDashboard = () => {
           )}
           
           {activeTab === 'trends' && <TrendsView />}
+
+          {/* NEW GAME VIEW */}
+          {activeTab === 'game' && (
+            <GameView credits={credits} onConsumeCredit={handleConsumeCredit} />
+          )}
         </div>
       </main>
     </div>

@@ -22,28 +22,34 @@
   --shadow: 0 4px 15px rgba(0,0,0,0.05);
 }
 
-/* --- DARK THEME OVERRIDES --- */
+/* --- DARK THEME OVERRIDES (Pitch Black / OLED Mode) --- */
 [data-theme='dark'] {
-  --bg-body: #121212;
-  --bg-card: #1e1e1e;
-  --bg-input: #2d2d2d;
-  --bg-hover: #333333;
+  /* 1. Backgrounds */
+  --bg-body: #000000;       /* Pure Black */
+  --bg-card: #0a0a0a;       /* Almost black, just enough to separate from body */
+  --bg-input: #161616;      /* Very dark gray inputs */
+  --bg-hover: #222222;      /* Hover state */
   
-  --text-main: #e0e0e0;
-  --text-muted: #a0a0a0;
-  --border-color: #333333;
+  /* 2. Text & Borders */
+  --text-main: #e5e5e5;     /* High contrast text */
+  --text-muted: #808080;    /* Dimmed text */
+  --border-color: #222222;  /* Very subtle borders */
 
-  /* Status Colors (Dark Mode) */
-  --bg-good: rgba(39, 174, 96, 0.25);
-  --bg-mid:  rgba(243, 156, 18, 0.25);
-  --bg-bad:  rgba(192, 57, 43, 0.25);
+  /* 3. Status Colors (Dark Mode) - Adjusted for black background */
+  --bg-good: rgba(46, 204, 113, 0.15);
+  --bg-mid:  rgba(241, 196, 15, 0.15);
+  --bg-bad:  rgba(231, 76, 60, 0.15);
 
-  --primary-green: #27ae60;   
+  /* 4. Accents */
+  --primary-green: #2ecc71;   
   --primary-blue: #7d73e6;
   --danger: #ff6b6b;
   --warning: #feca57;
 
-  --shadow: 0 4px 15px rgba(0,0,0,0.5);
+  /* 5. Shadows (Deep & Subtle since bg is black) */
+  --shadow: 0 4px 20px rgba(255, 255, 255, 0.03); /* Subtle white glow for depth or just dark */
+  /* OR stick to dark shadow if you prefer flat look: */
+  /* --shadow: 0 4px 20px rgba(0,0,0, 1); */ 
 }
 
 body {
@@ -131,6 +137,6 @@ label {
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-main); /* Changed from muted to main for better contrast */
+  color: var(--text-main); 
   margin-bottom: 0.5rem;
 }

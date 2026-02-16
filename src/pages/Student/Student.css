@@ -535,3 +535,182 @@
   from { transform: scale(0.5); opacity: 0; }
   to { transform: scale(1); opacity: 1; }
 }
+
+/* =========================================
+   ARCADE ZONE (PRO VERSION)
+   ========================================= */
+
+.game-layout {
+  display: flex;
+  gap: 30px; /* Reduced gap slightly to fit better on laptop screens */
+  justify-content: center;
+  align-items: flex-start;
+  flex-wrap: wrap; /* CRITICAL: Allows items to stack if screen is too small */
+  height: 100%;
+  padding-bottom: 40px; /* Extra space at bottom for scrolling */
+}
+
+.game-section {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Ensure it doesn't get squished */
+  min-width: 540px; 
+}
+
+/* Header UI */
+.game-header {
+  display: flex;
+  justify-content: center;
+  gap: 15px;
+  width: 100%;
+  margin-bottom: 15px;
+  position: relative;
+}
+
+.mute-btn {
+  position: absolute;
+  left: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.score-pill {
+  background: #4a752c; /* Snake Green Dark */
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+  min-width: 100px;
+  text-align: center;
+}
+
+.score-pill.high {
+  background: #f1c40f; /* Gold */
+  color: #2d3436;
+}
+
+/* The Game Screen */
+.canvas-wrapper.big-arena {
+  width: 540px;  /* Matches 18 tiles * 30px */
+  height: 540px;
+  
+  /* --- THE FIX IS HERE --- */
+  box-sizing: content-box; /* Ensures border adds to width, not subtracts */
+  /* ----------------------- */
+  
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  border: 8px solid #4a752c; /* Green Bezel */
+  position: relative;
+  background: #aad751; 
+  margin: 0 auto; /* Centers it nicely if it wraps */
+}
+
+/* Menus */
+.game-overlay {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(5px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+.snake-logo-text {
+  font-size: 4rem;
+  font-weight: 900;
+  color: white;
+  text-shadow: 0 5px 0 #4a752c;
+  margin-bottom: 30px;
+  font-family: 'Arial Rounded MT Bold', sans-serif;
+}
+
+.play-btn {
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: #4a752c;
+  border: 4px solid white;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+}
+
+.play-btn:hover { transform: scale(1.1); }
+.play-btn.disabled { background: #7f8c8d; opacity: 0.8; cursor: not-allowed; }
+
+.play-btn.small { width: 60px; height: 60px; }
+
+.coin-text {
+  color: white; font-weight: 700; margin-top: 15px; letter-spacing: 1px;
+}
+
+/* Game Over UI */
+.game-over-text {
+  font-size: 3rem; color: white; margin: 0 0 10px 0;
+  text-shadow: 0 4px 0 #e74c3c;
+}
+.final-score-box {
+  font-size: 5rem; font-weight: 800; color: white; margin-bottom: 30px;
+}
+.btn-row { display: flex; align-items: center; gap: 20px; }
+
+.icon-btn {
+  background: white; border: none; padding: 10px 20px;
+  border-radius: 20px; font-weight: 700; cursor: pointer;
+  color: #2d3436;
+}
+
+/* Leaderboard */
+.leaderboard-section {
+  /* Allow it to shrink/grow properly */
+  flex: 1 1 300px; 
+  min-width: 280px; 
+  max-width: 400px; /* Prevent it from stretching too wide on large screens */
+  
+  /* Match the height of the game arena + header visually */
+  height: 600px; 
+  display: flex;
+  flex-direction: column;
+}
+
+.leaderboard-card {
+  background: var(--bg-card);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  height: 100%;
+  display: flex; flex-direction: column;
+}
+
+.lb-list.scrollable {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 5px;
+}
+
+.lb-item {
+  display: flex; align-items: center; padding: 12px 10px;
+  border-radius: 8px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--bg-hover);
+}
+
+.lb-item.highlight { background: rgba(241, 196, 15, 0.15); border: 1px solid #f1c40f; }
+
+.lb-rank { width: 30px; font-weight: 700; }
+.lb-name { flex: 1; font-size: 0.9rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lb-score { font-weight: 700; color: var(--text-main); }

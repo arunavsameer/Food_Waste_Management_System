@@ -117,7 +117,7 @@ const StudentDashboard = () => {
              {activeTab === 'calendar' && 'Mess Performance Calendar'}
              {activeTab === 'feedback' && 'Daily Meal Feedback'}
              {activeTab === 'trends' && 'My Feedback History'}
-             {activeTab === 'game' && 'Arcade 🎮'}
+             {activeTab === 'game' && 'Arcade Zone'}
           </div>
           <div className="user-info">
              {/* Show Credits in Header too */}

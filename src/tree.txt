@@ -1,0 +1,41 @@
+.
+├── App.jsx
+├── assets
+│   └── react.svg
+├── components
+│   └── ThemeToggle.jsx
+├── context
+│   └── ThemeContext.jsx
+├── index.css
+├── lib
+│   └── supabase.js
+├── main.jsx
+├── pages
+│   ├── Admin
+│   ├── Caterer
+│   │   ├── CatererDashboard.css
+│   │   ├── CatererDashboard.jsx
+│   │   └── components
+│   │       ├── LogWasteView.jsx
+│   │       ├── MessagesView.jsx
+│   │       ├── MessFeedbackView.jsx
+│   │       ├── SkipCountsCard.jsx
+│   │       └── WasteHistoryView.jsx
+│   ├── Login
+│   │   ├── ForgotPassword.jsx
+│   │   ├── Login.css
+│   │   ├── Login.jsx
+│   │   ├── Register.jsx
+│   │   └── UpdatePassword.jsx
+│   └── Student
+│       ├── components
+│       │   ├── CalendarView.jsx
+│       │   ├── FeedbackView.jsx
+│       │   ├── GameView.jsx
+│       │   └── TrendsView.jsx
+│       ├── Student.css
+│       ├── StudentDashboard.jsx
+│       └── todo.txt
+└── tree.txt
+
+12 directories, 27 files

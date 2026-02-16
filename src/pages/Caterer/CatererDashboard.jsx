@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Trash2, MessageSquare, History, LogOut, Menu, X, Leaf } from 'lucide-react';
+import { Trash2, Bell, History, LogOut, Menu, X, Leaf } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './CatererDashboard.css';
 
 // Component Imports
 import LogWasteView from './components/LogWasteView';
-// import HistoryView from './components/HistoryView';
-// import MessagesView from './components/MessagesView';
+import MessagesView from './components/MessagesView';
 
 const CatererDashboard = () => {
   const navigate = useNavigate();
@@ -32,23 +31,24 @@ const CatererDashboard = () => {
   };
 
   return (
-    <div className="dashboard-container">
-      {/* Sidebar - Matches Student Sidebar Logic */}
+    <div className="dashboard-container caterer">
+      {/* Sidebar - Matches Student layout (1st & 3rd ref) */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-        <div className="brand">
-          {isSidebarOpen ? <h2>EcoPlate</h2> : <h2 style={{fontSize: '1.5rem'}}>🌱</h2>}
+        <div className="brand" style={{ justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
+          {isSidebarOpen && <h2>EcoPlate</h2>}
           <button className="toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
-        
+
+        <span className="nav-menu-label">MENU</span>
         <nav className="nav-menu">
           <button className={`nav-item ${activeTab === 'log' ? 'active' : ''}`} onClick={() => setActiveTab('log')}>
             <Trash2 size={20} />
             {isSidebarOpen && <span>Log Waste</span>}
           </button>
           <button className={`nav-item ${activeTab === 'messages' ? 'active' : ''}`} onClick={() => setActiveTab('messages')}>
-            <MessageSquare size={20} />
+            <Bell size={20} />
             {isSidebarOpen && <span>Messages</span>}
           </button>
           <button className={`nav-item ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
@@ -95,7 +95,9 @@ const CatererDashboard = () => {
         <div className="content-area">
           {activeTab === 'log' && <LogWasteView profile={profile} />}
           {activeTab === 'messages' && <MessagesView />}
-          {/* {activeTab === 'history' && <HistoryView />} */}
+          {activeTab === 'history' && (
+            <div className="messages-placeholder">Waste history — coming soon.</div>
+          )}
         </div>
       </main>
     </div>

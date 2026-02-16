@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Trash2, Bell, History, LogOut, Menu, X, Leaf } from 'lucide-react';
+import { Trash2, Bell, History, MessageSquare, LogOut, Menu, X, Leaf } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './CatererDashboard.css';
 
 // Component Imports
 import LogWasteView from './components/LogWasteView';
 import MessagesView from './components/MessagesView';
+import MessFeedbackView from './components/MessFeedbackView';
+import WasteHistoryView from './components/WasteHistoryView';
 
 const CatererDashboard = () => {
   const navigate = useNavigate();
@@ -55,6 +57,10 @@ const CatererDashboard = () => {
             <History size={20} />
             {isSidebarOpen && <span>History</span>}
           </button>
+          <button className={`nav-item ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>
+            <MessageSquare size={20} />
+            {isSidebarOpen && <span>Feedback</span>}
+          </button>
         </nav>
 
         <div className="sidebar-footer">
@@ -81,6 +87,7 @@ const CatererDashboard = () => {
              {activeTab === 'log' && 'Log Daily Waste'}
              {activeTab === 'messages' && 'Admin Messages'}
              {activeTab === 'history' && 'Waste History'}
+             {activeTab === 'feedback' && 'Food Feedback (This Mess)'}
           </div>
           <div className="user-info">
             <div className="user-details">
@@ -95,9 +102,8 @@ const CatererDashboard = () => {
         <div className="content-area">
           {activeTab === 'log' && <LogWasteView profile={profile} />}
           {activeTab === 'messages' && <MessagesView />}
-          {activeTab === 'history' && (
-            <div className="messages-placeholder">Waste history — coming soon.</div>
-          )}
+          {activeTab === 'history' && <WasteHistoryView messName={profile?.mess_name} />}
+          {activeTab === 'feedback' && <MessFeedbackView messName={profile?.mess_name} />}
         </div>
       </main>
     </div>

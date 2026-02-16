@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Trash2 } from 'lucide-react';
+import SkipCountsCard from './SkipCountsCard';
 
 const LogWasteView = ({ profile }) => {
   const [formData, setFormData] = useState({
@@ -71,6 +72,9 @@ const LogWasteView = ({ profile }) => {
       </div>
 
       <div className="right-column">
+        {/* Students skipping widget (dummy, future-ready) */}
+        <SkipCountsCard messName={profile?.mess_name} />
+
         {/* Segregation Guidelines */}
         <div className="card">
           <div className="bin-visuals">

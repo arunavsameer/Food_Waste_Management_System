@@ -1,8 +1,20 @@
 {
   "name": "food_waste_management",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
+  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
+  "homepage": "https://github.com/arunavsameer/Food_Waste_Management_System#readme",
+  "bugs": {
+    "url": "https://github.com/arunavsameer/Food_Waste_Management_System/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arunavsameer/Food_Waste_Management_System.git"
+  },
+  "license": "ISC",
+  "author": "",
   "type": "module",
+  "main": "eslint.config.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

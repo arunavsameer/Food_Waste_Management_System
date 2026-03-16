@@ -3,6 +3,7 @@
 ├── assets
 │   └── react.svg
 ├── components
+│   ├── ProtectedRoute.jsx
 │   └── ThemeToggle.jsx
 ├── context
 │   └── ThemeContext.jsx
@@ -38,4 +39,4 @@
 │       └── todo.txt
 └── tree.txt
 
-12 directories, 27 files
+12 directories, 28 files

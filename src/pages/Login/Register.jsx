@@ -15,12 +15,12 @@ const Register = () => {
     password: '',
     role: 'student', 
     mess_name: '',      
-
+    
     // Student specific fields
     name: '',           
     roll_no: '',        
     hostel: '',         
-    food_type: 'Veg',   
+    food_type: 'veg',   // Default matches the DB enum   
     
     // Caterer specific fields
     manager_name: '',   
@@ -32,10 +32,8 @@ const Register = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // Helper to fetch caterer_id based on the typed mess_name
   const fetchCatererId = async (messName) => {
     try {
-      // Assuming 'name' in caterers table is unique enough for this lookup
       const { data, error } = await supabase
         .from('caterers')
         .select('caterer_id')
@@ -45,7 +43,6 @@ const Register = () => {
       if (error) throw error;
       return data?.caterer_id || null;
     } catch (err) {
-      console.warn(`Could not find caterer_id for mess: ${messName}`, err.message);
       return null; 
     }
   };
@@ -56,6 +53,17 @@ const Register = () => {
     setError('');
 
     try {
+      // ==========================================
+      // PRE-VALIDATION: Check Caterer before Auth
+      // ==========================================
+      let catererId = null;
+      if (formData.role === 'student') {
+        catererId = await fetchCatererId(formData.mess_name);
+        if (!catererId) {
+          throw new Error(`Invalid caterer: "${formData.mess_name}" does not exist. Please check the spelling.`);
+        }
+      }
+
       // 1. Sign up the user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -83,9 +91,6 @@ const Register = () => {
 
         // 3. Conditionally insert into Students or Caterers table
         if (formData.role === 'student') {
-          // Fetch the foreign key UUID for the typed mess name
-          const catererId = await fetchCatererId(formData.mess_name);
-
           const { error: studentError } = await supabase
             .from('students')
             .insert([
@@ -94,8 +99,8 @@ const Register = () => {
                 roll_no: formData.roll_no,
                 name: formData.name,
                 hostel: formData.hostel,
-                food_type: formData.food_type,
-                caterer_id: catererId // Inserts UUID if found, or null if not (ensure column is nullable)
+                food_type: formData.food_type, // Now perfectly matches veg, non_veg, or jain
+                caterer_id: catererId 
               }
             ]);
           if (studentError) throw studentError;
@@ -134,7 +139,6 @@ const Register = () => {
         <p className="welcome-text">Create account (Dev Mode)</p>
 
         <form onSubmit={handleRegister} className="login-form">
-          {/* Base Auth Fields */}
           <div className="input-group">
             <label>Email Address</label>
             <div className="input-wrapper">
@@ -162,14 +166,13 @@ const Register = () => {
             </div>
           </div>
 
-          {/* ----- STUDENT SPECIFIC FIELDS ----- */}
           {formData.role === 'student' && (
             <>
               <div className="input-group">
-                <label>Name</label>
+                <label>Full Name</label>
                 <div className="input-wrapper">
                   <UserCircle size={18} className="input-icon" />
-                  <input type="text" name="name" placeholder="Enter Full name" value={formData.name} onChange={handleChange} required />
+                  <input type="text" name="name" placeholder="John Doe" value={formData.name} onChange={handleChange} required />
                 </div>
               </div>
 
@@ -177,7 +180,7 @@ const Register = () => {
                 <label>Roll Number</label>
                 <div className="input-wrapper">
                   <Hash size={18} className="input-icon" />
-                  <input type="text" name="roll_no" placeholder="e.g., 230001001" value={formData.roll_no} onChange={handleChange} required />
+                  <input type="text" name="roll_no" placeholder="e.g., 2023CSB1001" value={formData.roll_no} onChange={handleChange} required />
                 </div>
               </div>
 
@@ -192,17 +195,18 @@ const Register = () => {
               <div className="input-group">
                 <label>Food Type</label>
                 <div className="input-wrapper">
+                  <Utensils size={18} className="input-icon" />
                   <select name="food_type" value={formData.food_type} onChange={handleChange} className="styled-select">
-                    <option value="Veg">Vegetarian</option>
-                    <option value="Non-Veg">Non-Vegetarian</option>
-                    <option value="Vegan">Jain</option>
+                    {/* Updated to exactly match your DB's food_type_enum */}
+                    <option value="veg">Vegetarian</option>
+                    <option value="non_veg">Non-Vegetarian</option>
+                    <option value="jain">Jain</option>
                   </select>
                 </div>
               </div>
             </>
           )}
 
-          {/* ----- CATERER SPECIFIC FIELDS ----- */}
           {formData.role === 'caterer' && (
             <>
               <div className="input-group">
@@ -217,13 +221,12 @@ const Register = () => {
                 <label>Phone Number</label>
                 <div className="input-wrapper">
                   <Phone size={18} className="input-icon" />
-                  <input type="text" name="phone_no" placeholder="e.g., +91 9876543210" value={formData.phone_no} onChange={handleChange} required />
+                  <input type="tel" name="phone_no" placeholder="e.g., +91 9876543210" value={formData.phone_no} onChange={handleChange} required />
                 </div>
               </div>
             </>
           )}
 
-          {/* ----- SHARED MESS NAME FIELD (Text Input) ----- */}
           {(formData.role === 'student' || formData.role === 'caterer') && (
             <div className="input-group">
               <label>{formData.role === 'student' ? 'Mess Name to Subscribe' : 'Your Mess Name'}</label>

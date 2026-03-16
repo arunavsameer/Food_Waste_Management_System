@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider } from './context/ThemeContext'; // Import Provider
-import ThemeToggle from './components/ThemeToggle';     // Import Button
+import { ThemeProvider } from './context/ThemeContext'; 
+import ThemeToggle from './components/ThemeToggle';     
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Import Pages
 import Login from './pages/Login/Login';
@@ -15,19 +16,44 @@ const AdminDashboard = () => <h2>Admin Dashboard (Analytics)</h2>;
 
 function App() {
   return (
-    <ThemeProvider> {/* 1. Wrap entire app */}
+    <ThemeProvider> 
       <Router>
-        <ThemeToggle /> {/* 2. Add floating button here */}
+        <ThemeToggle /> 
         
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/update-password" element={<UpdatePassword />} />
           
-          <Route path="/student" element={<StudentDashboard />} />
-          <Route path="/caterer" element={<CatererDashboard />} />
-          <Route path="/admin" element={<AdminDashboard />} />
+          {/* Protected Routes */}
+          <Route 
+            path="/student" 
+            element={
+              <ProtectedRoute allowedRoles={['student']}>
+                <StudentDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/caterer" 
+            element={
+              <ProtectedRoute allowedRoles={['caterer']}>
+                <CatererDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          
+          <Route 
+            path="/admin" 
+            element={
+              <ProtectedRoute allowedRoles={['admin']}>
+                <AdminDashboard />
+              </ProtectedRoute>
+            } 
+          />
         </Routes>
       </Router>
     </ThemeProvider>

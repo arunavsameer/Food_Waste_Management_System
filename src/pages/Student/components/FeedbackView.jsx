@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
+import { supabase } from '../../../lib/supabase';
 
-// Now accepts onError as well
 const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
+  const [mealType, setMealType] = useState('lunch');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showShower, setShowShower] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
-  // ... (Date Logic Unchanged) ...
   const getRecentDates = () => {
     const dates = [];
     const today = new Date();
@@ -18,6 +18,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
       let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       if (i === 0) label = `Today (${label})`;
       else if (i === 1) label = `Yesterday (${label})`;
+      // value is formatted as YYYY-MM-DD perfectly for the SQL date column
       dates.push({ value: d.toISOString().split('T')[0], label: label });
     }
     return dates;
@@ -25,7 +26,6 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
   const recentDates = getRecentDates();
   const [selectedDate, setSelectedDate] = useState(recentDates[0].value);
 
-  // ... (Helper Logic Unchanged) ...
   const getEmoji = (score) => {
     if (score >= 9) return '🤩';
     if (score >= 7) return '😋';
@@ -40,10 +40,8 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
     return '#e74c3c';
   };
 
-  // --- UPDATED SUBMIT HANDLER ---
   const handleSubmit = async () => {
     if (!comment.trim() && rating < 5) {
-      // Example Validation: Require comment for bad ratings
       if (onError) onError("Please explain why the food was bad.");
       return;
     }
@@ -51,10 +49,55 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
     setIsSubmitting(true);
 
     try {
-      // Simulate API Call...
-      // await supabase.from('feedback').insert({...});
+      // 1. Get current logged-in user (student)
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      if (authError || !session) throw new Error("Authentication error. Please log in again.");
       
-      // If success:
+      const studentId = session.user.id;
+
+      // 2. Fetch the student's subscribed caterer_id
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select('caterer_id')
+        .eq('id', studentId)
+        .single();
+
+      if (studentError || !studentData?.caterer_id) {
+         throw new Error("Could not find your mess subscription.");
+      }
+
+      // 3. Prevent Duplicates: Check if feedback already exists for this date and meal type
+      const { data: existingFeedback, error: checkError } = await supabase
+        .from('feedback')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('date', selectedDate)
+        .eq('meal_type', mealType)
+        .maybeSingle(); // maybeSingle returns 1 row or null (unlike .single() which errors on 0 rows)
+
+      if (checkError) {
+        throw new Error("Failed to verify existing feedback. Please try again.");
+      }
+
+      if (existingFeedback) {
+        throw new Error(`You have already submitted feedback for ${mealType} on this date.`);
+      }
+
+      // 4. Insert feedback into the database, now including the date field
+      const { error: insertError } = await supabase
+        .from('feedback')
+        .insert([{
+          student_id: studentId,
+          caterer_id: studentData.caterer_id,
+          meal_type: mealType, 
+          rating: Number(rating),
+          comment: comment.trim() === '' ? null : comment.trim(),
+          date: selectedDate // Maps to the new date column in your DB
+        }]);
+
+      if (insertError) throw insertError;
+      
+      // Success Animations
       setShowShower(true);
       
       setTimeout(() => {
@@ -66,14 +109,13 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
       }, 1500);
 
     } catch (err) {
-      // Handle actual API errors here
+      console.error(err);
+      if (onError) onError(err.message || "Failed to submit feedback. Try again.");
+    } finally {
       setIsSubmitting(false);
-      if (onError) onError("Failed to submit feedback. Try again.");
     }
   };
 
-  // ... (Render Logic Unchanged) ...
-  // Shower particles setup
   const currentEmoji = getEmoji(Number(rating));
   const particles = Array.from({ length: 40 }).map((_, i) => ({
     id: i,
@@ -118,10 +160,14 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
           </div>
           <div className="form-group">
             <label>MEAL TYPE</label>
-            <select className="styled-select">
-              <option>Lunch</option>
-              <option>Dinner</option>
-              <option>Breakfast</option>
+            <select 
+              className="styled-select" 
+              value={mealType} 
+              onChange={(e) => setMealType(e.target.value)}
+            >
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
             </select>
           </div>
         </div>

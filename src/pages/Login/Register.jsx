@@ -19,8 +19,8 @@ const Register = () => {
     // Student specific fields
     name: '',           
     roll_no: '',        
-    hostel: '',         
-    food_type: 'veg',   // Default matches the DB enum   
+    hostel: 'APJ',      // Set default to first enum value 
+    food_type: 'veg',   
     
     // Caterer specific fields
     manager_name: '',   
@@ -54,16 +54,37 @@ const Register = () => {
 
     try {
       // ==========================================
-      // PRE-VALIDATION: Check Caterer before Auth
+      // PRE-VALIDATION: Check Roll No & Caterer before Auth
       // ==========================================
       let catererId = null;
+      
       if (formData.role === 'student') {
+        // 1. Pre-check if the Roll Number already exists
+        const { data: existingStudent, error: rollError } = await supabase
+          .from('students')
+          .select('roll_no')
+          .eq('roll_no', formData.roll_no)
+          .maybeSingle(); // maybeSingle returns 1 row or null without throwing an error
+
+        if (rollError) {
+          throw new Error("Failed to validate roll number. Please try again.");
+        }
+
+        if (existingStudent) {
+          throw new Error(`An account with Roll Number ${formData.roll_no} already exists.`);
+        }
+
+        // 2. Pre-check if the Caterer exists
         catererId = await fetchCatererId(formData.mess_name);
         if (!catererId) {
           throw new Error(`Invalid caterer: "${formData.mess_name}" does not exist. Please check the spelling.`);
         }
       }
 
+      // ==========================================
+      // REGISTRATION EXECUTION
+      // ==========================================
+      
       // 1. Sign up the user in Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -98,8 +119,8 @@ const Register = () => {
                 id: userId, 
                 roll_no: formData.roll_no,
                 name: formData.name,
-                hostel: formData.hostel,
-                food_type: formData.food_type, // Now perfectly matches veg, non_veg, or jain
+                hostel: formData.hostel, // Now guaranteed to be an exact match to the enum
+                food_type: formData.food_type, 
                 caterer_id: catererId 
               }
             ]);
@@ -188,7 +209,17 @@ const Register = () => {
                 <label>Hostel</label>
                 <div className="input-wrapper">
                   <Building size={18} className="input-icon" />
-                  <input type="text" name="hostel" placeholder="e.g., Boys Hostel A" value={formData.hostel} onChange={handleChange} required />
+                  {/* Converted to dropdown matching the DB enum exactly */}
+                  <select name="hostel" value={formData.hostel} onChange={handleChange} className="styled-select">
+                    <option value="APJ">APJ</option>
+                    <option value="CVR">CVR</option>
+                    <option value="DA">DA</option>
+                    <option value="VSB">VSB</option>
+                    <option value="HJB">HJB</option>
+                    <option value="JCB">JCB</option>
+                    <option value="PM Ajay">PM Ajay</option>
+                    <option value="Others">Others</option>
+                  </select>
                 </div>
               </div>
 
@@ -197,7 +228,6 @@ const Register = () => {
                 <div className="input-wrapper">
                   <Utensils size={18} className="input-icon" />
                   <select name="food_type" value={formData.food_type} onChange={handleChange} className="styled-select">
-                    {/* Updated to exactly match your DB's food_type_enum */}
                     <option value="veg">Vegetarian</option>
                     <option value="non_veg">Non-Vegetarian</option>
                     <option value="jain">Jain</option>

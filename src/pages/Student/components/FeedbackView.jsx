@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 
 const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
-  const [rating, setRating] = useState(5);
+  const [rating, setRating] = useState(7);
   const [comment, setComment] = useState('');
   const [mealType, setMealType] = useState('lunch');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -18,7 +18,6 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
       let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       if (i === 0) label = `Today (${label})`;
       else if (i === 1) label = `Yesterday (${label})`;
-      // value is formatted as YYYY-MM-DD perfectly for the SQL date column
       dates.push({ value: d.toISOString().split('T')[0], label: label });
     }
     return dates;
@@ -73,7 +72,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
         .eq('student_id', studentId)
         .eq('date', selectedDate)
         .eq('meal_type', mealType)
-        .maybeSingle(); // maybeSingle returns 1 row or null (unlike .single() which errors on 0 rows)
+        .maybeSingle();
 
       if (checkError) {
         throw new Error("Failed to verify existing feedback. Please try again.");
@@ -83,7 +82,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
         throw new Error(`You have already submitted feedback for ${mealType} on this date.`);
       }
 
-      // 4. Insert feedback into the database, now including the date field
+      // 4. Insert feedback into the database
       const { error: insertError } = await supabase
         .from('feedback')
         .insert([{
@@ -92,7 +91,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
           meal_type: mealType, 
           rating: Number(rating),
           comment: comment.trim() === '' ? null : comment.trim(),
-          date: selectedDate // Maps to the new date column in your DB
+          date: selectedDate
         }]);
 
       if (insertError) throw insertError;

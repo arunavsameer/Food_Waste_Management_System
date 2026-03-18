@@ -14,26 +14,56 @@ const StudentDashboard = () => {
   const [studentProfile, setStudentProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  
+  const [showProfile, setShowProfile] = useState(false);
+
   // --- GAMIFICATION STATE ---
   const [credits, setCredits] = useState(1); // Give 1 free credit to start
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
 
+  // useEffect(() => {
+  //   const fetchProfile = async () => {
+  //     try {
+  //       const { data: { user } } = await supabase.auth.getUser();
+  //       if (user) {
+  //         const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+  //         if (error) throw error;
+  //         setStudentProfile(data);
+  //       }
+  //     } catch (err) {
+  //       triggerToast('error', 'Failed to load profile');
+  //     }
+  //   };
+  //   fetchProfile();
+  // }, []);
+
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-          if (error) throw error;
-          setStudentProfile(data);
-        }
-      } catch (err) {
-        triggerToast('error', 'Failed to load profile');
+  const fetchProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select(`
+            *,
+            students (*)
+          `)
+          .eq('id', user.id)
+          .single();
+
+        if (error) throw error;
+
+        setStudentProfile(data);
       }
-    };
-    fetchProfile();
-  }, []);
+    } catch (err) {
+      triggerToast('error', 'Failed to load profile');
+    }
+  };
+
+  fetchProfile();
+}, []);
+
+
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -129,7 +159,34 @@ const StudentDashboard = () => {
               <span className="label">CURRENT MESS</span>
               <span className="value">{studentProfile?.mess_name || 'Loading...'}</span>
             </div>
-            <div className="avatar">SD</div>
+            <div className="avatar" onClick={() => setShowProfile(prev => !prev)} style={{ cursor: 'pointer' }}>
+               {studentProfile?.email?.[0]?.toUpperCase() || 'S'}
+            </div>
+            {showProfile && (
+              <div className="profile-dropdown">
+                <h4>Student Info</h4>
+                
+                <div className="profile-item">
+                  <span>Email:</span>
+                  <span>{studentProfile?.email || 'N/A'}</span>
+                </div>
+
+                <div className="profile-item">
+                  <span>Mess:</span>
+                  <span>{studentProfile?.mess_name || 'N/A'}</span>
+                </div>
+
+                {/* NEW FIELD */}
+                <div className="profile-item">
+                  <span>Food Type:</span>
+                  <span>{studentProfile?.students?.food_type || 'N/A'}</span>
+                </div>
+
+                <button className="logout-btn" onClick={handleLogout}>
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         </header>
 

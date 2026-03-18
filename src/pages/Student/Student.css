@@ -1015,6 +1015,7 @@ body:not([data-theme='dark']) .game-frame { border-color: #fff; }
 
   background: linear-gradient(135deg, var(--primary-blue), var(--primary-green));
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 

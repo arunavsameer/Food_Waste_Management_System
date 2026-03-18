@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, X, Coffee, Utensils, Moon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X, Coffee, Utensils, Moon, Loader2 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 
 const WasteHistoryView = ({ messName }) => {
@@ -14,14 +14,20 @@ const WasteHistoryView = ({ messName }) => {
   const firstDayOfWeek = new Date(year, month, 1).getDay();
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
-  const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
+  // Set loading to true immediately on nav click to trigger dimmed state
+  const prevMonth = () => {
+    setLoading(true);
+    setCurrentDate(new Date(year, month - 1, 1));
+  };
+  const nextMonth = () => {
+    setLoading(true);
+    setCurrentDate(new Date(year, month + 1, 1));
+  };
 
   useEffect(() => {
     const fetchMonthData = async () => {
-      setLoading(true);
-      
-      // 1. Get the current logged-in user
+      // Note: We don't clear dbLogs here so the old data stays visible 
+      // behind the dimmed overlay until the new data arrives.
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -32,19 +38,16 @@ const WasteHistoryView = ({ messName }) => {
       const start = new Date(year, month, 1).toISOString().split('T')[0];
       const end = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-      // 2. Filter query by both date AND caterer_id
       const { data, error } = await supabase
         .from('waste_reports')
         .select('*')
-        .eq('caterer_id', user.id) // <--- THIS FILTERS BY MESS
+        .eq('caterer_id', user.id)
         .gte('report_date', start)
         .lte('report_date', end)
         .order('report_date', { ascending: true });
 
       if (!error) {
         setDbLogs(data || []);
-      } else {
-        console.error("Error fetching mess history:", error.message);
       }
       setLoading(false);
     };
@@ -52,7 +55,6 @@ const WasteHistoryView = ({ messName }) => {
     fetchMonthData();
   }, [year, month]);
 
-  // ... rest of your useMemo logic (wasteByDay and stats) remains the same
   const wasteByDay = useMemo(() => {
     const map = new Map();
     dbLogs.forEach((log) => {
@@ -91,15 +93,14 @@ const WasteHistoryView = ({ messName }) => {
 
   return (
     <div className="calendar-layout">
-      {/* 
-         UI Code remains exactly the same as your previous version, 
-         ensuring the Dark Mode and Modal styles are preserved. 
-      */}
       <div className="calendar-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <div className="nav-header">
+          <div className="nav-header" style={{ position: 'relative' }}>
             <button onClick={prevMonth} className="nav-arrow-btn"><ChevronLeft size={20} /></button>
-            <span className="month-label">{monthNames[month]} {year}</span>
+            <span className="month-label">
+              {monthNames[month]} {year}
+              {loading && <Loader2 className="spinner" size={14} style={{ position: 'absolute', right: '-25px', top: '12px', opacity: 0.6 }} />}
+            </span>
             <button onClick={nextMonth} className="nav-arrow-btn"><ChevronRight size={20} /></button>
           </div>
           <div style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
@@ -107,39 +108,36 @@ const WasteHistoryView = ({ messName }) => {
           </div>
         </div>
 
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: '50px', color: 'var(--text-muted)' }}>Loading Mess History...</div>
-        ) : (
-          <div className="calendar-grid">
-            {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => <div key={d} className="grid-header">{d}</div>)}
-            {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${i}`} className="calendar-cell empty" />)}
-            {Array.from({ length: daysInMonth }).map((_, i) => {
-              const dayNum = i + 1;
-              const dayData = wasteByDay.get(dayNum);
-              const avg = dayData?.dayAvg || 0;
+        {/* Grid is always rendered, loading state is handled via CSS classes */}
+        <div className={`calendar-grid ${loading ? 'grid-loading' : ''}`}>
+          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => <div key={d} className="grid-header">{d}</div>)}
+          {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${i}`} className="calendar-cell empty" />)}
+          {Array.from({ length: daysInMonth }).map((_, i) => {
+            const dayNum = i + 1;
+            const dayData = wasteByDay.get(dayNum);
+            const avg = dayData?.dayAvg || 0;
 
-              return (
-                <div 
-                  key={dayNum} 
-                  className={`calendar-cell ${getStatus(avg)} ${dayData ? 'has-data' : ''}`}
-                  onClick={() => dayData && setSelectedDayDetail({ day: dayNum, meals: dayData.allMeals, total: dayData.totalDayWaste, count: dayData.mealCount })}
-                >
-                  <div className="date-num">{dayNum}</div>
-                  {avg > 0 ? (
-                    <>
-                      <div className="rating-score">{avg}</div>
-                      <div className="dish-name">kg / meal</div>
-                    </>
-                  ) : <div className="dish-name" style={{ opacity: 0.3 }}>-</div>}
-                </div>
-              );
-            })}
-          </div>
-        )}
+            return (
+              <div 
+                key={dayNum} 
+                className={`calendar-cell ${getStatus(avg)} ${dayData ? 'has-data' : ''}`}
+                onClick={() => dayData && setSelectedDayDetail({ day: dayNum, meals: dayData.allMeals, total: dayData.totalDayWaste, count: dayData.mealCount })}
+              >
+                <div className="date-num">{dayNum}</div>
+                {avg > 0 ? (
+                  <>
+                    <div className="rating-score">{avg}</div>
+                    <div className="dish-name">kg / meal</div>
+                  </>
+                ) : <div className="dish-name" style={{ opacity: 0.3 }}>-</div>}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className="sidebar-widgets">
-        <div className="eat-skip-card" style={{ background: 'linear-gradient(135deg, #e67e22 0%, #f39c12 100%)' }}>
+        <div className={`eat-skip-card ${loading ? 'widget-loading' : ''}`} style={{ background: 'linear-gradient(135deg, #e67e22 0%, #f39c12 100%)' }}>
           <h3>Your Mess Stats</h3>
           <p>Average waste per meal this month.</p>
           <span className="big-score" style={{ fontSize: '3.5rem', fontWeight: 900, color: 'white' }}>{stats.avg}</span>
@@ -148,7 +146,7 @@ const WasteHistoryView = ({ messName }) => {
         </div>
       </div>
 
-      {/* --- Modal and Style code remain same --- */}
+      {/* Modal remains unchanged logic-wise, but ensure styles use variables */}
       {selectedDayDetail && (
         <div className="emoji-shower-overlay" style={{ background: 'rgba(0,0,0,0.85)', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
           <div className="feedback-card" style={{ background: 'var(--bg-card)', padding: '30px', borderRadius: '16px', minWidth: '400px', position: 'relative', border: '1px solid var(--border-color)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
@@ -182,6 +180,10 @@ const WasteHistoryView = ({ messName }) => {
       )}
 
       <style>{`
+        .calendar-grid { transition: opacity 0.3s ease; }
+        .grid-loading { opacity: 0.5; pointer-events: none; }
+        .widget-loading { filter: blur(2px); opacity: 0.7; pointer-events: none; }
+
         .calendar-cell.has-data { cursor: pointer; }
         .calendar-cell.good { background-color: rgba(46, 204, 113, 0.08); border-color: rgba(46, 204, 113, 0.4); }
         .calendar-cell.mid { background-color: rgba(230, 126, 34, 0.08); border-color: rgba(230, 126, 34, 0.4); }
@@ -192,7 +194,7 @@ const WasteHistoryView = ({ messName }) => {
         [data-theme='dark'] .calendar-cell.bad { background: rgba(231, 76, 60, 0.2); border-color: var(--danger); }
         
         .nav-header { background: var(--bg-card); border-color: var(--border-color); }
-        .month-label { color: var(--text-main); }
+        .month-label { color: var(--text-main); display: flex; align-items: center; gap: 8px; }
         .nav-arrow-btn { color: var(--text-muted); }
       `}</style>
     </div>

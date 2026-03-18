@@ -179,15 +179,31 @@ const LogWasteView = ({ profile }) => {
 
       <div className="right-column">
         <SkipCountsCard messName={profile?.mess_name} />
-        <div className="card" style={{ marginTop: '20px', borderLeft: '4px solid #e67e22' }}>
-          <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Clock size={16} /> Submission Window
-          </h4>
-          <ul style={{ fontSize: '0.85rem', color: '#555', paddingLeft: '20px', marginTop: '8px' }}>
-            <li><strong>Breakfast:</strong> After 11:00 AM</li>
-            <li><strong>Lunch:</strong> After 3:00 PM</li>
-            <li><strong>Dinner:</strong> After 10:30 PM</li>
-          </ul>
+
+        <div className="submission-window-card">
+          <div className="sw-header">
+            <div className="sw-icon-box">
+              <Clock size={20} strokeWidth={2.5} />
+            </div>
+            <h3>Submission Window</h3>
+          </div>
+
+          <div className="sw-content">
+            <div className="sw-row">
+              <span className="sw-label">Breakfast</span>
+              <span className="sw-time">After 11:00 AM</span>
+            </div>
+            <div className="sw-row">
+              <span className="sw-label">Lunch</span>
+              <span className="sw-time">After 3:00 PM</span>
+            </div>
+            <div className="sw-row">
+              <span className="sw-label">Dinner</span>
+              <span className="sw-time">After 10:30 PM</span>
+            </div>
+          </div>
+          
+          <p className="sw-note">Reports cannot be submitted before these times.</p>
         </div>
       </div>
 

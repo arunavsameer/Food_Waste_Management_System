@@ -968,3 +968,117 @@ body:not([data-theme='dark']) .game-frame { border-color: #fff; }
   .game-frame, .game-status-bar { width: 100%; max-width: 90vw; }
   .game-frame { height: 90vw; max-height: 500px; }
 }
+/* =========================
+   PROFILE DROPDOWN (BIGGER + FANCY)
+   ========================= */
+
+.profile-dropdown {
+  position: absolute;
+  top: 70px;
+  right: 20px;
+  width: 300px; /* ⬅️ increased */
+
+  background: var(--bg-card);
+  color: var(--text-main);
+
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+
+  padding: 20px; /* ⬅️ more spacing */
+  z-index: 100;
+
+  box-shadow: var(--shadow);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  animation: dropdownFade 0.25s ease;
+}
+
+/* Animation */
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Header */
+.profile-dropdown h4 {
+  margin: 0 0 16px;
+  font-size: 1.2rem; /* ⬅️ bigger */
+  font-weight: 600;
+
+  background: linear-gradient(135deg, var(--primary-blue), var(--primary-green));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Profile items */
+.profile-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  padding: 10px 0; /* ⬅️ more spacing */
+  font-size: 1rem; /* ⬅️ bigger text */
+
+  border-bottom: 1px solid var(--border-color);
+}
+
+.profile-item:last-of-type {
+  border-bottom: none;
+}
+
+.profile-item span:first-child {
+  color: var(--text-muted);
+}
+
+.profile-item span:last-child {
+  font-weight: 500;
+}
+
+/* Hover */
+.profile-item:hover {
+  background: var(--bg-hover);
+  border-radius: 10px;
+  padding-left: 8px;
+  padding-right: 8px;
+  transition: all 0.2s ease;
+}
+
+/* Logout button */
+.profile-dropdown .logout-btn {
+  width: 100%;
+  margin-top: 16px;
+
+  background: linear-gradient(135deg, var(--danger), #ff7675);
+  color: white;
+
+  border-radius: 12px;
+  padding: 12px; /* ⬅️ bigger */
+  font-size: 1rem;
+
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+
+  transition: all 0.2s ease;
+}
+
+.profile-dropdown .logout-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(231, 76, 60, 0.3);
+}
+
+/* Dark mode glow */
+[data-theme='dark'] .profile-dropdown {
+  box-shadow: 
+    0 12px 35px rgba(0,0,0,0.9),
+    0 0 14px rgba(255,255,255,0.04);
+}

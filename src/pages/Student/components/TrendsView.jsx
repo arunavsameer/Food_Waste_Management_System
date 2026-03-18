@@ -182,7 +182,7 @@ const TrendsView = () => {
                   <>
                     <div className="rating-score">{log.rating}</div>
                     <div className="dish-name" style={{ fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', padding: '0 4px' }}>
-                      {log.comment !== '-' ? log.comment : 'Rated'}
+                      {log.comment !== '-' ? log.comment : '-'}
                     </div>
                   </>
                 ) : (

@@ -1,11 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { CheckCircle, ChevronLeft, ChevronRight, X } from 'lucide-react'; 
+import { CheckCircle, ChevronLeft, ChevronRight, X, AlertCircle } from 'lucide-react'; 
+
+// ==========================================
+// CONFIGURATION: SKIP CUTOFF TIMES (24-Hour Format)
+// Easy to change later. hour: 0-23, minute: 0-59
+// ==========================================
+const SKIP_CUTOFF_TIMES = {
+  Breakfast: { hour: 7, minute: 0 },   // 7:00 AM
+  Lunch:     { hour: 11, minute: 30 }, // 11:30 AM
+  Dinner:    { hour: 19, minute: 0 }   // 7:00 PM
+};
 
 const CalendarView = ({ messName }) => {
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [calendarData, setCalendarData] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); 
+  
+  // State for our bottom-right error toast
+  const [toastError, setToastError] = useState(null);
   
   const getRealTimeMeal = () => {
     const hour = new Date().getHours();
@@ -25,6 +38,13 @@ const CalendarView = ({ messName }) => {
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  // Helper function to trigger the toast 
+  // (CSS handles the 3-second fade out, this just cleans up the DOM)
+  const showErrorToast = (message) => {
+    setToastError(message);
+    setTimeout(() => setToastError(null), 3500); 
+  };
 
   useEffect(() => {
     const fetchCalendarData = async () => {
@@ -93,16 +113,91 @@ const CalendarView = ({ messName }) => {
 
   const [skipData, setSkipData] = useState(getNextMealDefaults());
   const [isSkipped, setIsSkipped] = useState(false);
+  const [isSkipping, setIsSkipping] = useState(false); 
 
-  const handleSkipSubmit = () => {
-    setIsSkipped(true);
-    setTimeout(() => setIsSkipped(false), 3000);
+  const handleSkipSubmit = async () => {
+    setIsSkipping(true);
+    setToastError(null); 
+    
+    try {
+      // ==========================================
+      // TIME CONSTRAINT VALIDATION
+      // ==========================================
+      if (skipData.day === 'Today') {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const cutoff = SKIP_CUTOFF_TIMES[skipData.meal];
+
+        // If current time is past the cutoff hour, OR same hour but past the minute
+        if (
+          currentHour > cutoff.hour || 
+          (currentHour === cutoff.hour && currentMinute >= cutoff.minute)
+        ) {
+          const ampm = cutoff.hour >= 12 ? 'PM' : 'AM';
+          const displayHour = cutoff.hour > 12 ? cutoff.hour - 12 : (cutoff.hour === 0 ? 12 : cutoff.hour);
+          const displayMinute = cutoff.minute.toString().padStart(2, '0');
+          
+          throw new Error(`It is too late to skip today's ${skipData.meal}. The cutoff time was ${displayHour}:${displayMinute} ${ampm}.`);
+        }
+      }
+
+      // ==========================================
+      // DATABASE INSERT
+      // ==========================================
+      const { data: { session }, error: authError } = await supabase.auth.getSession();
+      if (authError || !session) throw new Error("Please log in to skip meals.");
+
+      const targetDate = new Date();
+      if (skipData.day === 'Tomorrow') {
+        targetDate.setDate(targetDate.getDate() + 1);
+      }
+      
+      const dateString = targetDate.toISOString().split('T')[0];
+      const menuType = skipData.meal.toLowerCase(); 
+
+      const { error } = await supabase
+        .from('skip_table')
+        .insert([{
+          date: dateString,
+          menu_type: menuType,
+          student_id: session.user.id
+        }]);
+
+      if (error) {
+        if (error.code === '23505') {
+          throw new Error(`You have already skipped ${skipData.meal} for ${skipData.day}.`);
+        }
+        throw error;
+      }
+
+      setIsSkipped(true);
+      setTimeout(() => setIsSkipped(false), 3000);
+    } catch (err) {
+      showErrorToast(err.message || "Failed to mark meal as skipped. Please try again.");
+    } finally {
+      setIsSkipping(false);
+    }
   };
 
   return (
     <div className="calendar-layout" style={{ position: 'relative' }}>
       
-      {/* MODAL OVERLAY - Themed */}
+      {/* ERROR TOAST NOTIFICATION (Using Student.css classes) */}
+      {toastError && (
+        <div 
+          className="feedback-toast error" 
+          onClick={() => setToastError(null)}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="toast-icon">
+            <AlertCircle color="#ffffff" size={16} />
+          </div>
+          <div>{toastError}</div>
+        </div>
+      )}
+
+      {/* MODAL OVERLAY */}
       {selectedDay && (
         <div 
           onClick={() => setSelectedDay(null)}
@@ -231,7 +326,9 @@ const CalendarView = ({ messName }) => {
                   <option value="Dinner">Dinner</option>
                 </select>
               </div>
-              <button className="action-btn" onClick={handleSkipSubmit}>Skip This Meal</button>
+              <button className="action-btn" onClick={handleSkipSubmit} disabled={isSkipping}>
+                 {isSkipping ? 'Processing...' : 'Skip This Meal'}
+              </button>
             </>
           )}
         </div>

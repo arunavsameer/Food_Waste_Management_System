@@ -1,38 +1,62 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, MessageSquare, TrendingUp, LogOut, Menu, X, Check, AlertCircle, Gamepad2 } from 'lucide-react'; // Added Gamepad2
+import { Calendar, MessageSquare, TrendingUp, LogOut, Menu, X, Check, AlertCircle, Gamepad2 } from 'lucide-react'; 
 import { useNavigate } from 'react-router-dom';
 import './Student.css';
 
 import CalendarView from './components/CalendarView';
 import FeedbackView from './components/FeedbackView';
 import TrendsView from './components/TrendsView';
-import GameView from './components/GameView'; // Import the new component
+import GameView from './components/GameView'; 
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const [studentProfile, setStudentProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  
+  const [showProfile, setShowProfile] = useState(false);
+
   // --- GAMIFICATION STATE ---
-  const [credits, setCredits] = useState(1); // Give 1 free credit to start
+  const [credits, setCredits] = useState(0); // Set initial to 0
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
 
   useEffect(() => {
-    const fetchProfile = async () => {
+    const fetchProfileAndStats = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
+
         if (user) {
-          const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          // 1. Fetch Profile
+          const { data, error } = await supabase
+            .from('profiles')
+            .select(`*, students (*)`)
+            .eq('id', user.id)
+            .single();
+
           if (error) throw error;
           setStudentProfile(data);
+
+          // 2. Fetch or Initialize Tokens
+          const { data: scoreData } = await supabase
+            .from('player_score')
+            .select('game_points')
+            .eq('student_id', user.id)
+            .maybeSingle();
+
+          if (scoreData) {
+            setCredits(scoreData.game_points);
+          } else {
+            // Give them a row with 0 tokens if it's their first time logging in
+            await supabase.from('player_score').insert([{ student_id: user.id, game_points: 0, high_score: 0, attempts_count: 0 }]);
+            setCredits(0);
+          }
         }
       } catch (err) {
         triggerToast('error', 'Failed to load profile');
       }
     };
-    fetchProfile();
+
+    fetchProfileAndStats();
   }, []);
 
   const handleLogout = async () => {
@@ -45,21 +69,14 @@ const StudentDashboard = () => {
     setTimeout(() => setToast((prev) => ({ ...prev, show: false })), 3000);
   };
 
-  // Called when Feedback is submitted
   const handleFeedbackSuccess = () => {
-    // 1. Earn Credit
-    setCredits(prev => prev + 1);
-    
-    // 2. Show Special Toast
-    triggerToast('success', 'Feedback sent! +1 Game Credit 🪙');
-    
-    // 3. Switch to Game Tab to show the reward? (Optional, let's keep them on calendar for utility)
+    setCredits(prev => prev + 1); // Update local state (DB is updated in FeedbackView)
+    triggerToast('success', 'Feedback sent! +1 Game Token 🪙');
     setActiveTab('calendar');
   };
 
-  // Called when Game starts
   const handleConsumeCredit = () => {
-    setCredits(prev => Math.max(0, prev - 1));
+    setCredits(prev => Math.max(0, prev - 1)); // Decrement local state visually
   };
 
   return (
@@ -95,7 +112,6 @@ const StudentDashboard = () => {
             <TrendingUp size={20} />
             {isSidebarOpen && <span>My Trends</span>}
           </button>
-          {/* NEW GAME TAB */}
           <button className={`nav-item ${activeTab === 'game' ? 'active' : ''}`} onClick={() => setActiveTab('game')}>
             <Gamepad2 size={20} />
             {isSidebarOpen && <span>Arcade Zone</span>}
@@ -120,7 +136,6 @@ const StudentDashboard = () => {
              {activeTab === 'game' && 'Arcade Zone'}
           </div>
           <div className="user-info">
-             {/* Show Credits in Header too */}
             <div className="credit-badge" onClick={() => setActiveTab('game')} style={{cursor: 'pointer', marginRight: '15px', display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--bg-hover)', padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: 'bold', color: '#f1c40f'}}>
                 <span style={{fontSize: '1.2rem'}}>🪙</span> {credits}
             </div>
@@ -129,7 +144,33 @@ const StudentDashboard = () => {
               <span className="label">CURRENT MESS</span>
               <span className="value">{studentProfile?.mess_name || 'Loading...'}</span>
             </div>
-            <div className="avatar">SD</div>
+            <div className="avatar" onClick={() => setShowProfile(prev => !prev)} style={{ cursor: 'pointer' }}>
+               {studentProfile?.email?.[0]?.toUpperCase() || 'S'}
+            </div>
+            {showProfile && (
+              <div className="profile-dropdown">
+                <h4>Student Info</h4>
+                
+                <div className="profile-item">
+                  <span>Email:</span>
+                  <span>{studentProfile?.email || 'N/A'}</span>
+                </div>
+
+                <div className="profile-item">
+                  <span>Mess:</span>
+                  <span>{studentProfile?.mess_name || 'N/A'}</span>
+                </div>
+
+                <div className="profile-item">
+                  <span>Food Type:</span>
+                  <span>{studentProfile?.students?.food_type || 'N/A'}</span>
+                </div>
+
+                <button className="logout-btn" onClick={handleLogout}>
+                  Logout
+                </button>
+              </div>
+            )}
           </div>
         </header>
 
@@ -145,7 +186,6 @@ const StudentDashboard = () => {
           
           {activeTab === 'trends' && <TrendsView />}
 
-          {/* NEW GAME VIEW */}
           {activeTab === 'game' && (
             <GameView credits={credits} onConsumeCredit={handleConsumeCredit} />
           )}

@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { supabase } from '../../../lib/supabase';
 import { Trophy, Play, RotateCcw, Volume2, VolumeX, Keyboard, Lock } from 'lucide-react';
 
 const GameView = ({ credits, onConsumeCredit }) => {
   const [gameState, setGameState] = useState('menu');
+  
   const [score, setScore] = useState(0);
-  const [highScore, setHighScore] = useState(320);
+  const scoreRef = useRef(0); // FIX: Ensures the game over loop sees the correct final score
+
   const [isMuted, setIsMuted] = useState(false);
   const [currentTheme, setCurrentTheme] = useState('light');
 
-  // --- Theme Observer ---
+  const [userId, setUserId] = useState(null);
+  const [highScore, setHighScore] = useState(0);
+  const [attemptsCount, setAttemptsCount] = useState(0);
+  const [leaderboard, setLeaderboard] = useState([]);
+
   useEffect(() => {
     setCurrentTheme(document.body.getAttribute('data-theme') || 'light');
     const observer = new MutationObserver((mutations) => {
@@ -22,6 +29,58 @@ const GameView = ({ credits, onConsumeCredit }) => {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const fetchBackendData = async () => {
+      try {
+        const { data: { session }, error: authError } = await supabase.auth.getSession();
+        if (authError || !session) return;
+        const uid = session.user.id;
+        setUserId(uid);
+
+        let { data: stats, error: statsError } = await supabase
+          .from('player_score')
+          .select('*')
+          .eq('student_id', uid)
+          .maybeSingle();
+
+        if (!stats) {
+          // Initialize with 0 tokens 
+          const { data: newStats, error: insertError } = await supabase
+            .from('player_score')
+            .insert([{ student_id: uid, game_points: 0, high_score: 0, attempts_count: 0 }])
+            .select().single();
+          if (!insertError) stats = newStats;
+        }
+
+        if (stats) {
+          setHighScore(stats.high_score);
+          setAttemptsCount(stats.attempts_count);
+        }
+
+        const { data: lbData, error: lbError } = await supabase
+          .from('player_score')
+          .select('student_id, high_score, students(name)')
+          .order('high_score', { ascending: false })
+          .limit(10);
+        
+        if (lbData) {
+          const formattedLb = lbData.map(item => ({
+            id: item.student_id,
+            name: item.students?.name || 'Unknown',
+            score: item.high_score
+          }));
+          setLeaderboard(formattedLb);
+        }
+      } catch (err) {
+        console.error("Error fetching game data:", err);
+      }
+    };
+
+    if (gameState === 'menu' || gameState === 'gameover') {
+      fetchBackendData();
+    }
+  }, [gameState]);
+
   const canvasRef = useRef(null);
   const snakeRef = useRef([{ x: 10, y: 10 }]);
   const foodRef = useRef({ x: 15, y: 15 });
@@ -34,7 +93,6 @@ const GameView = ({ credits, onConsumeCredit }) => {
   const TILE_COUNT = 18; 
   const CANVAS_SIZE = GRID_SIZE * TILE_COUNT;
 
-  // --- Sound Logic ---
   const playSound = (type) => {
     if (isMuted) return;
     try {
@@ -59,7 +117,6 @@ const GameView = ({ credits, onConsumeCredit }) => {
     } catch (e) {}
   };
 
-  // --- Game Controls ---
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key) && gameState === 'playing') e.preventDefault();
@@ -75,14 +132,12 @@ const GameView = ({ credits, onConsumeCredit }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [gameState]);
 
-  // --- Render ---
   const renderGame = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const isDark = currentTheme === 'dark';
 
-    // 1. Background
     ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
     const c1 = isDark ? '#1a1a1a' : '#f0fdf4';
     const c2 = isDark ? '#222' : '#dcfce7';
@@ -94,7 +149,6 @@ const GameView = ({ credits, onConsumeCredit }) => {
       }
     }
 
-    // 2. Food
     const fx = foodRef.current.x * GRID_SIZE;
     const fy = foodRef.current.y * GRID_SIZE;
     const center = GRID_SIZE / 2;
@@ -107,7 +161,6 @@ const GameView = ({ credits, onConsumeCredit }) => {
     ctx.fillStyle = isDark ? '#2ecc71' : '#27ae60';
     ctx.beginPath(); ctx.ellipse(fx + center, fy + 4, 3, 6, Math.PI / 4, 0, Math.PI * 2); ctx.fill();
 
-    // 3. Snake
     snakeRef.current.forEach((seg, i) => {
       const sx = seg.x * GRID_SIZE;
       const sy = seg.y * GRID_SIZE;
@@ -146,7 +199,13 @@ const GameView = ({ credits, onConsumeCredit }) => {
     }
     const newSnake = [head, ...snakeRef.current];
     if (head.x === foodRef.current.x && head.y === foodRef.current.y) {
-      setScore(prev => prev + 10); playSound('eat');
+      
+      // Update both React State and our ref tracking
+      const newScore = scoreRef.current + 10;
+      setScore(newScore); 
+      scoreRef.current = newScore;
+      
+      playSound('eat');
       let newFood;
       do { newFood = { x: Math.floor(Math.random() * TILE_COUNT), y: Math.floor(Math.random() * TILE_COUNT) }; } while (newSnake.some(s => s.x === newFood.x && s.y === newFood.y));
       foodRef.current = newFood;
@@ -154,10 +213,21 @@ const GameView = ({ credits, onConsumeCredit }) => {
     snakeRef.current = newSnake;
   };
 
-  const handleGameOver = () => {
-    playSound('die'); setGameState('gameover');
-    if (score > highScore) setHighScore(score);
+  const handleGameOver = async () => {
+    playSound('die'); 
+    setGameState('gameover');
     cancelAnimationFrame(requestRef.current);
+    
+    // Read from the ref to avoid the stale closure bug
+    const finalScore = scoreRef.current;
+    
+    if (finalScore > highScore) {
+      setHighScore(finalScore);
+      await supabase
+        .from('player_score')
+        .update({ high_score: finalScore })
+        .eq('student_id', userId);
+    }
   };
 
   const gameLoop = useCallback((time) => {
@@ -174,33 +244,40 @@ const GameView = ({ credits, onConsumeCredit }) => {
     return () => cancelAnimationFrame(requestRef.current);
   }, [gameState, gameLoop, renderGame]);
 
-  const startGame = () => {
+  const startGame = async () => {
     if (credits > 0) {
-      onConsumeCredit(); setGameState('playing'); setScore(0);
+      onConsumeCredit(); // Subtracts token in UI instantly
+      const newAttempts = attemptsCount + 1;
+      
+      setAttemptsCount(newAttempts);
+      setGameState('playing'); 
+      setScore(0);
+      scoreRef.current = 0; // Reset tracking ref
       snakeRef.current = [{ x: 5, y: 10 }, { x: 4, y: 10 }];
-      directionRef.current = 'RIGHT'; nextDirectionRef.current = 'RIGHT';
+      directionRef.current = 'RIGHT'; 
+      nextDirectionRef.current = 'RIGHT';
       lastTimeRef.current = 0;
+
+      // Ensure Database Subtracts the Token
+      await supabase
+        .from('player_score')
+        .update({ game_points: credits - 1, attempts_count: newAttempts })
+        .eq('student_id', userId);
     }
   };
-
-  const leaderboard = [
-    { name: 'Rahul', score: 320 },
-    { name: 'Sneha', score: 280 },
-    { name: 'You', score: score > 270 ? score : 270 },
-    { name: 'Arjun', score: 250 },
-  ].sort((a,b) => b.score - a.score);
 
   return (
     <div className="arcade-mode-container">
       <div className="game-dashboard-layout">
         <div className="game-main-area">
           <div className="game-status-bar">
-             {/* ADDED CLASSNAME FOR RED COLOR LOGIC */}
              <button className={`mute-toggle ${isMuted ? 'is-muted' : ''}`} onClick={() => setIsMuted(!isMuted)}>
                {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
              </button>
              
              <div className="score-pill">
+                <span>TOKENS: {credits}</span>
+                <span style={{opacity:0.5}}>|</span>
                 <span>SCORE: {score.toString().padStart(3, '0')}</span>
                 <span style={{opacity:0.5}}>|</span>
                 <span>BEST: {highScore}</span>
@@ -217,8 +294,9 @@ const GameView = ({ credits, onConsumeCredit }) => {
                   {gameState === 'gameover' ? 'GAME OVER' : 'SNAKE'}
                 </h1>
                 {gameState === 'gameover' && (
-                   <div style={{fontSize:'1.5rem', color:'white', marginBottom:'20px'}}>
-                     Final Score: <span style={{color:'#e74c3c', fontWeight:'bold'}}>{score}</span>
+                   <div style={{fontSize:'1.5rem', color:'white', marginBottom:'20px', textAlign: 'center'}}>
+                     Final Score: <span style={{color:'#e74c3c', fontWeight:'bold'}}>{score}</span><br/>
+                     <span style={{fontSize: '1rem', color: '#aaa', fontWeight: 'normal'}}>Total Attempts: {attemptsCount}</span>
                    </div>
                 )}
                 <button onClick={startGame} disabled={credits === 0} style={{
@@ -230,7 +308,7 @@ const GameView = ({ credits, onConsumeCredit }) => {
                    {credits > 0 ? (
                      <>{gameState === 'gameover' ? <RotateCcw size={20}/> : <Play size={20}/>} {gameState === 'gameover' ? 'RETRY' : 'PLAY'}</>
                    ) : (
-                     <><Lock size={20}/> NO CREDITS</>
+                     <><Lock size={20}/> NO TOKENS</>
                    )}
                 </button>
               </div>
@@ -262,13 +340,19 @@ const GameView = ({ credits, onConsumeCredit }) => {
             <h3>Leaderboard</h3>
           </div>
           <div className="lb-list">
-            {leaderboard.map((p, idx) => (
-              <div key={idx} className={`lb-item ${p.name === 'You' ? 'current-user' : ''}`}>
-                <div className="lb-rank">{idx + 1}</div>
-                <div className="player-name" style={{flex:1}}>{p.name}</div>
-                <div className="player-score" style={{fontWeight:700}}>{p.score}</div>
-              </div>
-            ))}
+            {leaderboard.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No scores yet!</div>
+            ) : (
+              leaderboard.map((p, idx) => (
+                <div key={idx} className={`lb-item ${p.id === userId ? 'current-user' : ''}`}>
+                  <div className="lb-rank">{idx + 1}</div>
+                  <div className="player-name" style={{flex:1}}>
+                    {p.id === userId ? 'You' : p.name}
+                  </div>
+                  <div className="player-score" style={{fontWeight:700}}>{p.score}</div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>

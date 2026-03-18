@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Trash2, Bell, History, MessageSquare, LogOut, Menu, X, Leaf } from 'lucide-react';
+// Added Phone to your imports!
+import { Trash2, Bell, History, MessageSquare, LogOut, Menu, X, Leaf, Phone } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './CatererDashboard.css';
 
@@ -15,16 +16,46 @@ const CatererDashboard = () => {
   const [profile, setProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('log');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // --- Dropdown & Loading State ---
+  const [isLoading, setIsLoading] = useState(true);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
+      setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
+      
       if (user) {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        setProfile(data);
+        // --- CORRECTED DATABASE FETCH ---
+        // Using 'caterers' table and 'caterer_id' based on your Supabase schema
+        const { data, error } = await supabase
+          .from('caterers') 
+          .select('*')
+          .eq('caterer_id', user.id)
+          .single();
+          
+        if (data) {
+          setProfile(data);
+        } else if (error) {
+          console.error("Error fetching profile:", error);
+        }
       }
+      setIsLoading(false);
     };
     fetchProfile();
+  }, []);
+
+  // Handle clicking outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleLogout = async () => {
@@ -32,9 +63,15 @@ const CatererDashboard = () => {
     navigate('/'); // Redirects to login page
   };
 
+  // Helper to extract initials
+  const getInitials = (name) => {
+    if (!name) return 'CT';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+  };
+
   return (
     <div className="dashboard-container caterer">
-      {/* Sidebar - Matches Student layout (1st & 3rd ref) */}
+      {/* Sidebar */}
       <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
         <div className="brand" style={{ justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
           {isSidebarOpen && <h2>EcoPlate</h2>}
@@ -89,21 +126,59 @@ const CatererDashboard = () => {
              {activeTab === 'history' && 'Waste History'}
              {activeTab === 'feedback' && 'Food Feedback (This Mess)'}
           </div>
-          <div className="user-info">
+          
+          {/* Interactive User Info Section */}
+          <div className="user-info" ref={dropdownRef}>
             <div className="user-details">
               <span className="label">CURRENT MESS</span>
-              <span className="value">{profile?.mess_name || 'Loading...'}</span>
+              <span className="value">
+                {/* Changed to profile.name to match your database schema ("Sheela") */}
+                {isLoading ? 'Loading...' : (profile?.name || 'Unknown')}
+              </span>
             </div>
-            <div className="avatar">CT</div>
+            
+            {/* Clickable Avatar */}
+            <div 
+              className="avatar" 
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+            >
+              {isLoading ? '...' : getInitials(profile?.manager_name || profile?.name)}
+            </div>
+
+            {/* --- UPDATED DROPDOWN DESIGN --- */}
+            {isProfileOpen && !isLoading && (
+              <div className="profile-dropdown">
+                
+                {/* Gray inner box from your screenshot */}
+                <div className="profile-info-box">
+                  <p className="profile-name">{profile?.manager_name || profile?.name || 'Caterer Profile'}</p>
+                  
+                  <div className="profile-phone">
+                    <Phone size={14} className="phone-icon" strokeWidth={2.5} />
+                    <span>{profile?.phone_no || 'No phone provided'}</span>
+                  </div>
+                </div>
+                
+                {/* Logout Button */}
+                <div className="profile-actions">
+                  <button onClick={handleLogout} className="dropdown-logout-btn">
+                    <LogOut size={18} strokeWidth={2} />
+                    Log out
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
-        {/* Content Area - Form is only rendered when activeTab is 'log' */}
+        {/* Content Area */}
         <div className="content-area">
+          {/* Note: Updated these props to use profile?.name based on your schema */}
           {activeTab === 'log' && <LogWasteView profile={profile} />}
           {activeTab === 'messages' && <MessagesView />}
-          {activeTab === 'history' && <WasteHistoryView messName={profile?.mess_name} />}
-          {activeTab === 'feedback' && <MessFeedbackView messName={profile?.mess_name} />}
+          {activeTab === 'history' && <WasteHistoryView messName={profile?.name} />}
+          {activeTab === 'feedback' && <MessFeedbackView messName={profile?.name} />}
         </div>
       </main>
     </div>

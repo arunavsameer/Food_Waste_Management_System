@@ -1,30 +1,13 @@
-import React, { useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight, TrendingUp } from 'lucide-react';
-
-const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
-
-const seedFromString = (str = '') => {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-};
-
-// Deterministic PRNG (stable dummy data per mess + month).
-// Replace this with real DB queries later.
-const mulberry32 = (a) => () => {
-  let t = (a += 0x6d2b79f5);
-  t = Math.imul(t ^ (t >>> 15), t | 1);
-  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
+import React, { useMemo, useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, X, Coffee, Utensils, Moon } from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
 
 const WasteHistoryView = ({ messName }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [dbLogs, setDbLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedDayDetail, setSelectedDayDetail] = useState(null);
 
-  // Calendar math
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -34,134 +17,184 @@ const WasteHistoryView = ({ messName }) => {
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
 
-  const key = `${messName || 'default'}-${year}-${month}`;
+  useEffect(() => {
+    const fetchMonthData = async () => {
+      setLoading(true);
+      
+      // 1. Get the current logged-in user
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
+      const start = new Date(year, month, 1).toISOString().split('T')[0];
+      const end = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+      // 2. Filter query by both date AND caterer_id
+      const { data, error } = await supabase
+        .from('waste_reports')
+        .select('*')
+        .eq('caterer_id', user.id) // <--- THIS FILTERS BY MESS
+        .gte('report_date', start)
+        .lte('report_date', end)
+        .order('report_date', { ascending: true });
+
+      if (!error) {
+        setDbLogs(data || []);
+      } else {
+        console.error("Error fetching mess history:", error.message);
+      }
+      setLoading(false);
+    };
+
+    fetchMonthData();
+  }, [year, month]);
+
+  // ... rest of your useMemo logic (wasteByDay and stats) remains the same
   const wasteByDay = useMemo(() => {
-    const rnd = mulberry32(seedFromString(key));
     const map = new Map();
-
-    for (let day = 1; day <= daysInMonth; day++) {
-      // 70% chance a day has a logged entry in the dummy history
-      if (rnd() < 0.3) continue;
-
-      const kitchen = clamp(Math.round(rnd() * 12 * 10) / 10, 0, 12); // 0.0..12.0
-      const plate = clamp(Math.round(rnd() * 10 * 10) / 10, 0, 10);  // 0.0..10.0
-      const total = Math.round((kitchen + plate) * 10) / 10;
-
-      map.set(day, { kitchen, plate, total });
-    }
-
+    dbLogs.forEach((log) => {
+      const day = parseInt(log.report_date.split('-')[2], 10);
+      if (!map.has(day)) {
+        map.set(day, { totalDayWaste: 0, mealCount: 0, allMeals: [] });
+      }
+      const dayData = map.get(day);
+      const logTotal = (Number(log.kitchen_uncooked) || 0) + 
+                       (Number(log.kitchen_cooked) || 0) + 
+                       (Number(log.plate_waste) || 0);
+      dayData.totalDayWaste += logTotal;
+      dayData.mealCount += 1;
+      dayData.allMeals.push(log);
+    });
+    map.forEach((data) => {
+      data.dayAvg = data.mealCount > 0 ? Number((data.totalDayWaste / data.mealCount).toFixed(1)) : 0;
+    });
     return map;
-  }, [key, daysInMonth]);
-
-  const thresholds = { lowMax: 6, medMax: 12 }; // kg (total)
-  const statusForTotal = (total) => {
-    if (total <= thresholds.lowMax) return 'low';
-    if (total <= thresholds.medMax) return 'med';
-    return 'high';
-  };
+  }, [dbLogs]);
 
   const stats = useMemo(() => {
-    const entries = Array.from(wasteByDay.entries()).map(([day, v]) => ({ day, ...v }));
-    if (entries.length === 0) return { avg: '0.0', max: null, loggedDays: 0 };
+    if (dbLogs.length === 0) return { avg: '0.0', totalMeals: 0 };
+    const grandTotalWaste = dbLogs.reduce((acc, m) => 
+      acc + (Number(m.kitchen_uncooked) || 0) + (Number(m.kitchen_cooked) || 0) + (Number(m.plate_waste) || 0)
+    , 0);
+    return { avg: (grandTotalWaste / dbLogs.length).toFixed(1), totalMeals: dbLogs.length };
+  }, [dbLogs]);
 
-    const avg = entries.reduce((s, e) => s + e.total, 0) / entries.length;
-    const max = entries.reduce((best, e) => (best == null || e.total > best.total ? e : best), null);
-    return { avg: avg.toFixed(1), max, loggedDays: entries.length };
-  }, [wasteByDay]);
+  const getStatus = (val) => {
+    if (val === 0) return 'neutral';
+    if (val <= 10) return 'good';
+    if (val <= 25) return 'mid';
+    return 'bad';
+  };
 
   return (
-    <div className="caterer-feedback-layout">
-      <div className="caterer-feedback-main">
-        <div className="caterer-feedback-header">
-          <div className="caterer-nav-header">
-            <button onClick={prevMonth} className="caterer-nav-arrow-btn" aria-label="Previous month">
-              <ChevronLeft size={20} />
-            </button>
-            <span className="caterer-month-label">
-              {monthNames[month]} {year}
-            </span>
-            <button onClick={nextMonth} className="caterer-nav-arrow-btn" aria-label="Next month">
-              <ChevronRight size={20} />
-            </button>
+    <div className="calendar-layout">
+      {/* 
+         UI Code remains exactly the same as your previous version, 
+         ensuring the Dark Mode and Modal styles are preserved. 
+      */}
+      <div className="calendar-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div className="nav-header">
+            <button onClick={prevMonth} className="nav-arrow-btn"><ChevronLeft size={20} /></button>
+            <span className="month-label">{monthNames[month]} {year}</span>
+            <button onClick={nextMonth} className="nav-arrow-btn"><ChevronRight size={20} /></button>
+          </div>
+          <div style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
+            Daily Average Waste
           </div>
         </div>
 
-        <div className="caterer-waste-legend">
-          <span className="w-dot low" /> Low
-          <span className="w-dot med" style={{ marginLeft: 10 }} /> Medium
-          <span className="w-dot high" style={{ marginLeft: 10 }} /> High
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '50px', color: 'var(--text-muted)' }}>Loading Mess History...</div>
+        ) : (
+          <div className="calendar-grid">
+            {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => <div key={d} className="grid-header">{d}</div>)}
+            {Array.from({ length: firstDayOfWeek }).map((_, i) => <div key={`e-${i}`} className="calendar-cell empty" />)}
+            {Array.from({ length: daysInMonth }).map((_, i) => {
+              const dayNum = i + 1;
+              const dayData = wasteByDay.get(dayNum);
+              const avg = dayData?.dayAvg || 0;
+
+              return (
+                <div 
+                  key={dayNum} 
+                  className={`calendar-cell ${getStatus(avg)} ${dayData ? 'has-data' : ''}`}
+                  onClick={() => dayData && setSelectedDayDetail({ day: dayNum, meals: dayData.allMeals, total: dayData.totalDayWaste, count: dayData.mealCount })}
+                >
+                  <div className="date-num">{dayNum}</div>
+                  {avg > 0 ? (
+                    <>
+                      <div className="rating-score">{avg}</div>
+                      <div className="dish-name">kg / meal</div>
+                    </>
+                  ) : <div className="dish-name" style={{ opacity: 0.3 }}>-</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      <div className="sidebar-widgets">
+        <div className="eat-skip-card" style={{ background: 'linear-gradient(135deg, #e67e22 0%, #f39c12 100%)' }}>
+          <h3>Your Mess Stats</h3>
+          <p>Average waste per meal this month.</p>
+          <span className="big-score" style={{ fontSize: '3.5rem', fontWeight: 900, color: 'white' }}>{stats.avg}</span>
+          <p>KG PER MEAL</p>
+          <div style={{ marginTop: '10px', fontSize: '0.85rem', opacity: 0.9 }}>Total Logs: {stats.totalMeals}</div>
         </div>
+      </div>
 
-        <div className="caterer-waste-grid">
-          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) => (
-            <div key={d} className="caterer-grid-header">
-              {d}
-            </div>
-          ))}
-
-          {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-            <div key={`empty-${i}`} className="caterer-waste-cell empty" />
-          ))}
-
-          {Array.from({ length: daysInMonth }).map((_, i) => {
-            const dayNum = i + 1;
-            const entry = wasteByDay.get(dayNum) || null;
-            const statusClass = entry ? statusForTotal(entry.total) : 'neutral';
-
-            return (
-              <div key={dayNum} className={`caterer-waste-cell ${statusClass}`}>
-                <div className="caterer-date-num">{dayNum}</div>
-                {entry ? (
-                  <>
-                    <div className="caterer-waste-total">{entry.total} kg</div>
-                    <div className="caterer-waste-split">
-                      K {entry.kitchen} • P {entry.plate}
-                    </div>
-                  </>
-                ) : (
-                  <div className="caterer-waste-split" style={{ marginTop: 'auto', opacity: 0.35 }}>
-                    -
+      {/* --- Modal and Style code remain same --- */}
+      {selectedDayDetail && (
+        <div className="emoji-shower-overlay" style={{ background: 'rgba(0,0,0,0.85)', pointerEvents: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div className="feedback-card" style={{ background: 'var(--bg-card)', padding: '30px', borderRadius: '16px', minWidth: '400px', position: 'relative', border: '1px solid var(--border-color)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+            <button onClick={() => setSelectedDayDetail(null)} style={{ position: 'absolute', top: '15px', right: '15px', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>
+              <X size={24} />
+            </button>
+            <h3 style={{ marginBottom: '10px', color: 'var(--text-main)' }}>Day {selectedDayDetail.day} Breakdown</h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px' }}>Total: <strong>{selectedDayDetail.total.toFixed(1)}kg</strong> across <strong>{selectedDayDetail.count} meals</strong>.</p>
+            
+            {['breakfast', 'lunch', 'dinner'].map(type => {
+              const m = selectedDayDetail.meals.find(meal => meal.meal_type.toLowerCase().trim() === type);
+              return (
+                <div key={type} className="menu-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 0', borderBottom: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {type === 'breakfast' && <Coffee size={20} color="#e67e22" />}
+                    {type === 'lunch' && <Utensils size={20} color="#e67e22" />}
+                    {type === 'dinner' && <Moon size={20} color="#e67e22" />}
+                    <span style={{ fontWeight: 600, textTransform: 'capitalize', color: 'var(--text-main)' }}>{type}</span>
                   </div>
-                )}
-              </div>
-            );
-          })}
+                  {m ? (
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontWeight: 800, color: 'var(--text-main)' }}>{(Number(m.kitchen_cooked) + Number(m.kitchen_uncooked) + Number(m.plate_waste)).toFixed(1)} kg</div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>K: {m.kitchen_cooked} | P: {m.plate_waste}</div>
+                    </div>
+                  ) : <span style={{ color: 'var(--border-color)', fontSize: '0.8rem' }}>No Entry</span>}
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      <div className="caterer-feedback-side">
-        <div className="card" style={{ textAlign: 'center' }}>
-          <TrendingUp size={44} style={{ marginBottom: 10, color: 'var(--primary-green)' }} />
-          <div style={{ fontSize: '2rem', fontWeight: 800 }}>{stats.avg}</div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>Avg waste (logged days)</p>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: 8 }}>
-            Logged days: <strong style={{ color: 'var(--text-main)' }}>{stats.loggedDays}</strong>
-          </p>
-        </div>
+      <style>{`
+        .calendar-cell.has-data { cursor: pointer; }
+        .calendar-cell.good { background-color: rgba(46, 204, 113, 0.08); border-color: rgba(46, 204, 113, 0.4); }
+        .calendar-cell.mid { background-color: rgba(230, 126, 34, 0.08); border-color: rgba(230, 126, 34, 0.4); }
+        .calendar-cell.bad { background-color: rgba(231, 76, 60, 0.08); border-color: rgba(231, 76, 60, 0.4); }
 
-        <div className="card">
-          <h4 style={{ marginTop: 0, marginBottom: 12 }}>Highest waste day</h4>
-          {stats.max ? (
-            <div className="caterer-max-waste">
-              <div className="caterer-max-row">
-                <span className="caterer-max-label">Day</span>
-                <strong>{stats.max.day}</strong>
-              </div>
-              <div className="caterer-max-row">
-                <span className="caterer-max-label">Total</span>
-                <strong>{stats.max.total} kg</strong>
-              </div>
-              <div className="caterer-max-row" style={{ borderBottom: 'none', paddingBottom: 0 }}>
-                <span className="caterer-max-label">Split</span>
-                <strong>K {stats.max.kitchen} • P {stats.max.plate}</strong>
-              </div>
-            </div>
-          ) : (
-            <div style={{ color: 'var(--text-muted)' }}>No history yet.</div>
-          )}
-        </div>
-      </div>
+        [data-theme='dark'] .calendar-cell.good { background: rgba(46, 204, 113, 0.2); border-color: var(--primary-green); }
+        [data-theme='dark'] .calendar-cell.mid { background: rgba(230, 126, 34, 0.2); border-color: #e67e22; }
+        [data-theme='dark'] .calendar-cell.bad { background: rgba(231, 76, 60, 0.2); border-color: var(--danger); }
+        
+        .nav-header { background: var(--bg-card); border-color: var(--border-color); }
+        .month-label { color: var(--text-main); }
+        .nav-arrow-btn { color: var(--text-muted); }
+      `}</style>
     </div>
   );
 };

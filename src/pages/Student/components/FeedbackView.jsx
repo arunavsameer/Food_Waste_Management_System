@@ -48,13 +48,11 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
     setIsSubmitting(true);
 
     try {
-      // 1. Get current logged-in user (student)
       const { data: { session }, error: authError } = await supabase.auth.getSession();
       if (authError || !session) throw new Error("Authentication error. Please log in again.");
       
       const studentId = session.user.id;
 
-      // 2. Fetch the student's subscribed caterer_id
       const { data: studentData, error: studentError } = await supabase
         .from('students')
         .select('caterer_id')
@@ -65,7 +63,6 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
          throw new Error("Could not find your mess subscription.");
       }
 
-      // 3. Prevent Duplicates: Check if feedback already exists for this date and meal type
       const { data: existingFeedback, error: checkError } = await supabase
         .from('feedback')
         .select('id')
@@ -74,15 +71,9 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
         .eq('meal_type', mealType)
         .maybeSingle();
 
-      if (checkError) {
-        throw new Error("Failed to verify existing feedback. Please try again.");
-      }
+      if (checkError) throw new Error("Failed to verify existing feedback. Please try again.");
+      if (existingFeedback) throw new Error(`You have already submitted feedback for ${mealType} on this date.`);
 
-      if (existingFeedback) {
-        throw new Error(`You have already submitted feedback for ${mealType} on this date.`);
-      }
-
-      // 4. Insert feedback into the database
       const { error: insertError } = await supabase
         .from('feedback')
         .insert([{
@@ -95,17 +86,25 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
         }]);
 
       if (insertError) throw insertError;
-      
-      // Success Animations
-      setShowShower(true);
-      
-      setTimeout(() => {
-        setIsExiting(true);
-      }, 1000);
 
-      setTimeout(() => {
-        onSuccessfulSubmit();
-      }, 1500);
+      // ==========================================
+      // EARN TOKEN LOGIC (Update Database)
+      // ==========================================
+      const { data: scoreData } = await supabase
+        .from('player_score')
+        .select('game_points')
+        .eq('student_id', studentId)
+        .maybeSingle();
+
+      if (scoreData) {
+         await supabase.from('player_score').update({ game_points: scoreData.game_points + 1 }).eq('student_id', studentId);
+      } else {
+         await supabase.from('player_score').insert([{ student_id: studentId, game_points: 1, high_score: 0, attempts_count: 0 }]);
+      }
+      
+      setShowShower(true);
+      setTimeout(() => setIsExiting(true), 1000);
+      setTimeout(() => onSuccessfulSubmit(), 1500);
 
     } catch (err) {
       console.error(err);
@@ -132,12 +131,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
             <div 
               key={p.id} 
               className="falling-emoji"
-              style={{
-                left: p.left,
-                animationDelay: p.delay,
-                animationDuration: p.duration,
-                fontSize: p.size
-              }}
+              style={{ left: p.left, animationDelay: p.delay, animationDuration: p.duration, fontSize: p.size }}
             >
               {currentEmoji}
             </div>
@@ -159,11 +153,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
           </div>
           <div className="form-group">
             <label>MEAL TYPE</label>
-            <select 
-              className="styled-select" 
-              value={mealType} 
-              onChange={(e) => setMealType(e.target.value)}
-            >
+            <select className="styled-select" value={mealType} onChange={(e) => setMealType(e.target.value)}>
               <option value="breakfast">Breakfast</option>
               <option value="lunch">Lunch</option>
               <option value="dinner">Dinner</option>
@@ -174,9 +164,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
         <div className="rating-section" style={{ textAlign: 'center', padding: '20px 0' }}>
           <div style={{ marginBottom: '15px' }}>
             <div style={{ fontSize: '4rem', lineHeight: '1' }}>{currentEmoji}</div>
-            <div style={{ 
-              fontSize: '2rem', fontWeight: '800', color: getRatingColor(rating), marginTop: '10px' 
-            }}>
+            <div style={{ fontSize: '2rem', fontWeight: '800', color: getRatingColor(rating), marginTop: '10px' }}>
               {rating}/10
             </div>
           </div>

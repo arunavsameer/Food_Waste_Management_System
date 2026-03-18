@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'; 
+import { CheckCircle, ChevronLeft, ChevronRight, X } from 'lucide-react'; 
 
 const CalendarView = ({ messName }) => {
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [calendarData, setCalendarData] = useState([]);
+  const [selectedDay, setSelectedDay] = useState(null); 
   
   const getRealTimeMeal = () => {
     const hour = new Date().getHours();
@@ -15,7 +16,6 @@ const CalendarView = ({ messName }) => {
 
   const [mealType, setMealType] = useState(getRealTimeMeal());
 
-  // Calendar Math
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -26,46 +26,34 @@ const CalendarView = ({ messName }) => {
   
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // ==========================================
-  // FETCH AGGREGATE DATA FROM SUPABASE
-  // ==========================================
   useEffect(() => {
     const fetchCalendarData = async () => {
       try {
-        // 1. Get current logged-in user (student)
         const { data: { session }, error: authError } = await supabase.auth.getSession();
-        if (authError || !session) return; // Exit if not logged in
+        if (authError || !session) return; 
         
-        // 2. Fetch the student's subscribed caterer_id
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .select('caterer_id')
           .eq('id', session.user.id)
           .single();
 
-        if (studentError || !studentData?.caterer_id) {
-           console.warn("Could not find caterer subscription for this student.");
-           return;
-        }
+        if (studentError || !studentData?.caterer_id) return;
 
         const catererId = studentData.caterer_id;
-
-        // 3. Format start and end dates for SQL querying (YYYY-MM-DD)
         const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
         const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
-        // 4. Fetch the average scores ONLY for this specific caterer
         const { data, error } = await supabase
           .from('feedback_cal')
           .select('*')
           .gte('date', startOfMonth)
           .lte('date', endOfMonth)
           .eq('meal_type', mealType.toLowerCase())
-          .eq('caterer_id', catererId); // <--- Added Caterer Filter here
+          .eq('caterer_id', catererId); 
 
         if (error) throw error;
 
-        // Transform DB rows into the format expected by the UI
         const formattedData = data.map(row => {
           const dayNum = parseInt(row.date.split('-')[2], 10);
           const score = row.average;
@@ -77,8 +65,9 @@ const CalendarView = ({ messName }) => {
           return {
             day: dayNum,
             rating: score.toFixed(1),
+            count: row.feedback_count, 
             status: status,
-            dish: 'Menu Item' // Placeholder until connected to weekly_menu
+            dish: 'Menu Item' 
           };
         });
 
@@ -89,7 +78,7 @@ const CalendarView = ({ messName }) => {
     };
 
     fetchCalendarData();
-  }, [month, year, mealType]); // Refetch when month, year, or meal filter changes
+  }, [month, year, mealType]); 
 
   const getDataForDay = (dayNum) => {
     return calendarData.find(d => d.day === dayNum);
@@ -111,43 +100,74 @@ const CalendarView = ({ messName }) => {
   };
 
   return (
-    <div className="calendar-layout">
-      <div className="calendar-section">
-        
-        {/* HEADER */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          
-          <div className="nav-header">
-            <button onClick={prevMonth} className="nav-arrow-btn">
-              <ChevronLeft size={20} />
-            </button>
-            <span className="month-label">
-              {monthNames[month]} {year}
-            </span>
-            <button onClick={nextMonth} className="nav-arrow-btn">
-              <ChevronRight size={20} />
-            </button>
-          </div>
-
-          <select 
-            value={mealType}
-            onChange={(e) => setMealType(e.target.value)}
-            className="header-select"
+    <div className="calendar-layout" style={{ position: 'relative' }}>
+      
+      {/* MODAL OVERLAY - Themed */}
+      {selectedDay && (
+        <div 
+          onClick={() => setSelectedDay(null)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()} 
+            style={{
+              backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)',
+              padding: '25px', borderRadius: '12px', width: '90%', maxWidth: '350px',
+              position: 'relative', boxShadow: 'var(--shadow)', color: 'var(--text-main)'
+            }}
           >
+            <button 
+              onClick={() => setSelectedDay(null)} 
+              style={{ position: 'absolute', top: '15px', right: '15px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+            >
+              <X size={24} />
+            </button>
+            <h3 style={{ marginTop: 0, marginBottom: '20px', fontSize: '1.2rem' }}>
+              {monthNames[month]} {selectedDay.day}, {year}
+            </h3>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', paddingBottom: '15px', borderBottom: '1px solid var(--border-color)' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Meal</span>
+              <strong>{mealType}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Avg Rating</span>
+              <strong style={{ fontSize: '1.2rem', color: selectedDay.status === 'good' ? 'var(--primary-green)' : selectedDay.status === 'mid' ? 'var(--warning)' : 'var(--danger)' }}>
+                {selectedDay.rating} / 10
+              </strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-muted)' }}>Total Feedback</span>
+              <strong>{selectedDay.count} Students</strong>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="calendar-section">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div className="nav-header">
+            <button onClick={prevMonth} className="nav-arrow-btn"><ChevronLeft size={20} /></button>
+            <span className="month-label">{monthNames[month]} {year}</span>
+            <button onClick={nextMonth} className="nav-arrow-btn"><ChevronRight size={20} /></button>
+          </div>
+          <select value={mealType} onChange={(e) => setMealType(e.target.value)} className="header-select">
             <option value="Breakfast">Breakfast</option>
             <option value="Lunch">Lunch</option>
             <option value="Dinner">Dinner</option>
           </select>
         </div>
 
-        {/* LEGEND */}
         <div className="legend">
           <span className="dot green"></span> Good
           <span className="dot yellow" style={{ marginLeft: '10px' }}></span> Avg
           <span className="dot red" style={{ marginLeft: '10px' }}></span> Bad
         </div>
 
-        {/* CALENDAR GRID */}
         <div className="calendar-grid">
           {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
             <div key={d} className="grid-header">{d}</div>
@@ -163,7 +183,14 @@ const CalendarView = ({ messName }) => {
             const statusClass = data ? data.status : 'neutral';
 
             return (
-              <div key={dayNum} className={`calendar-cell ${statusClass}`}>
+              <div 
+                key={dayNum} 
+                className={`calendar-cell ${statusClass}`}
+                onClick={() => data && setSelectedDay(data)}
+                style={{ cursor: data ? 'pointer' : 'default', transition: 'transform 0.1s' }}
+                onMouseOver={(e) => data && (e.currentTarget.style.transform = 'scale(1.05)')}
+                onMouseOut={(e) => data && (e.currentTarget.style.transform = 'scale(1)')}
+              >
                 <div className="date-num">{dayNum}</div>
                 {data ? (
                   <>

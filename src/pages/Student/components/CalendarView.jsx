@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../../lib/supabase';
 import { CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'; 
 
 const CalendarView = ({ messName }) => {
   const [currentDate, setCurrentDate] = useState(new Date()); 
+  const [calendarData, setCalendarData] = useState([]);
   
   const getRealTimeMeal = () => {
     const hour = new Date().getHours();
@@ -24,23 +26,73 @@ const CalendarView = ({ messName }) => {
   
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // Mock Data
-  const allData = [
-    { day: 2, type: 'Lunch', rating: 7.5, dish: 'Paneer Tikka', status: 'good' },
-    { day: 5, type: 'Lunch', rating: 4.0, dish: 'Baingan', status: 'bad' },
-    { day: 8, type: 'Lunch', rating: 8.0, dish: 'Dal Makhani', status: 'good' },
-    { day: 12, type: 'Lunch', rating: 9.0, dish: 'Fried Rice', status: 'good' },
-    { day: 14, type: 'Lunch', rating: 6.0, dish: 'Chole', status: 'mid' },
-    { day: 15, type: 'Lunch', rating: 4.5, dish: 'Khichdi', status: 'bad' },
-    { day: 20, type: 'Lunch', rating: 7.0, dish: 'Rajma', status: 'mid' },
-    { day: 25, type: 'Lunch', rating: 8.5, dish: 'Chicken Curry', status: 'good' },
-    { day: 2, type: 'Dinner', rating: 5.0, dish: 'Mix Veg', status: 'mid' },
-    { day: 8, type: 'Dinner', rating: 3.5, dish: 'Tinda', status: 'bad' },
-    { day: 14, type: 'Dinner', rating: 8.0, dish: 'Egg Curry', status: 'good' },
-  ];
+  // ==========================================
+  // FETCH AGGREGATE DATA FROM SUPABASE
+  // ==========================================
+  useEffect(() => {
+    const fetchCalendarData = async () => {
+      try {
+        // 1. Get current logged-in user (student)
+        const { data: { session }, error: authError } = await supabase.auth.getSession();
+        if (authError || !session) return; // Exit if not logged in
+        
+        // 2. Fetch the student's subscribed caterer_id
+        const { data: studentData, error: studentError } = await supabase
+          .from('students')
+          .select('caterer_id')
+          .eq('id', session.user.id)
+          .single();
+
+        if (studentError || !studentData?.caterer_id) {
+           console.warn("Could not find caterer subscription for this student.");
+           return;
+        }
+
+        const catererId = studentData.caterer_id;
+
+        // 3. Format start and end dates for SQL querying (YYYY-MM-DD)
+        const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
+        const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
+
+        // 4. Fetch the average scores ONLY for this specific caterer
+        const { data, error } = await supabase
+          .from('feedback_cal')
+          .select('*')
+          .gte('date', startOfMonth)
+          .lte('date', endOfMonth)
+          .eq('meal_type', mealType.toLowerCase())
+          .eq('caterer_id', catererId); // <--- Added Caterer Filter here
+
+        if (error) throw error;
+
+        // Transform DB rows into the format expected by the UI
+        const formattedData = data.map(row => {
+          const dayNum = parseInt(row.date.split('-')[2], 10);
+          const score = row.average;
+          
+          let status = 'bad';
+          if (score >= 7) status = 'good';
+          else if (score >= 5) status = 'mid';
+
+          return {
+            day: dayNum,
+            rating: score.toFixed(1),
+            status: status,
+            dish: 'Menu Item' // Placeholder until connected to weekly_menu
+          };
+        });
+
+        setCalendarData(formattedData);
+      } catch (err) {
+        console.error("Error fetching calendar data:", err.message);
+      }
+    };
+
+    fetchCalendarData();
+  }, [month, year, mealType]); // Refetch when month, year, or meal filter changes
 
   const getDataForDay = (dayNum) => {
-    return allData.find(d => d.day === dayNum && d.type === mealType);
+    return calendarData.find(d => d.day === dayNum);
   };
 
   const getNextMealDefaults = () => {
@@ -65,7 +117,6 @@ const CalendarView = ({ messName }) => {
         {/* HEADER */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           
-          {/* Left: Month Navigation */}
           <div className="nav-header">
             <button onClick={prevMonth} className="nav-arrow-btn">
               <ChevronLeft size={20} />
@@ -78,7 +129,6 @@ const CalendarView = ({ messName }) => {
             </button>
           </div>
 
-          {/* Right: Meal Filter (Uses fixed width class) */}
           <select 
             value={mealType}
             onChange={(e) => setMealType(e.target.value)}

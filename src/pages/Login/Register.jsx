@@ -24,7 +24,11 @@ const Register = () => {
     
     // Caterer specific fields
     manager_name: '',   
-    phone_no: ''        
+    phone_no: '',
+
+    // Admin specific fields
+    admin_name: '',
+    admin_phone_no: ''
   });
   const [error, setError] = useState('');
 
@@ -139,8 +143,18 @@ const Register = () => {
             ]);
           if (catererError) throw catererError;
         }
-
-        alert('Account created successfully! Please log in.');
+        else if (formData.role === 'admin') {
+          const { error: adminError } = await supabase
+            .from('admins')
+            .insert([
+              {
+                admin_id: userId,
+                name: formData.admin_name,
+                phone_no: formData.admin_phone_no
+              }
+            ]);
+          if (adminError) throw adminError;
+        }
         navigate('/');
       }
     } catch (err) {
@@ -252,6 +266,26 @@ const Register = () => {
                 <div className="input-wrapper">
                   <Phone size={18} className="input-icon" />
                   <input type="tel" name="phone_no" placeholder="e.g., +91 9876543210" value={formData.phone_no} onChange={handleChange} required />
+                </div>
+              </div>
+            </>
+          )}
+
+          {formData.role === 'admin' && (
+            <>
+              <div className="input-group">
+                <label>Full Name</label>
+                <div className="input-wrapper">
+                  <UserCircle size={18} className="input-icon" />
+                  <input type="text" name="admin_name" placeholder="Admin's Full Name" value={formData.admin_name} onChange={handleChange} required />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label>Phone Number</label>
+                <div className="input-wrapper">
+                  <Phone size={18} className="input-icon" />
+                  <input type="tel" name="admin_phone_no" placeholder="e.g., +91 9876543210" value={formData.admin_phone_no} onChange={handleChange} required />
                 </div>
               </div>
             </>

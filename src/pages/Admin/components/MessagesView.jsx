@@ -17,12 +17,22 @@ const fmtTime = (ts) =>
   new Date(ts).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
 const fmtDateSeparator = (ts) =>
-  new Date(ts).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  new Date(ts).toLocaleDateString('en-IN', {
+    weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',
+  });
 
 const isSameDay = (a, b) =>
   new Date(a).toDateString() === new Date(b).toDateString();
 
-/* Sentinel for the "Broadcast All" virtual channel */
+const dedupe = (arr) => {
+  const seen = new Set();
+  return arr.filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+};
+
 const BROADCAST_ID = '__broadcast__';
 
 /* ─────────────────────────────────────────────
@@ -31,10 +41,10 @@ const BROADCAST_ID = '__broadcast__';
 const DateSep = ({ ts }) => (
   <div style={{
     display: 'flex', alignItems: 'center', gap: '12px',
-    margin: '12px 0', color: 'var(--text-muted)',
+    margin: '12px 0',
   }}>
     <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
-    <span style={{ fontSize: '0.7rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+    <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
       {fmtDateSeparator(ts)}
     </span>
     <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
@@ -45,34 +55,54 @@ const DateSep = ({ ts }) => (
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 const MessagesView = () => {
-  const [adminId,   setAdminId]   = useState(null);
-  const [caterers,  setCaterers]  = useState([]);
-  const [loading,   setLoading]   = useState(true);
-  const [selected,  setSelected]  = useState(null); // caterer object | { caterer_id: BROADCAST_ID }
-  const [messages,  setMessages]  = useState([]);
-  const [msgLoading,setMsgLoading]= useState(false);
-  const [input,     setInput]     = useState('');
-  const [sending,   setSending]   = useState(false);
-  const [error,     setError]     = useState('');
+  /* current admin's UUID */
+  const [adminId,    setAdminId]    = useState(null);
+  /*
+    Set of ALL admin profile UUIDs.
+    Used at render time: if msg.sender_id is in this set → sender is admin (show on right/sent).
+    Otherwise sender is a caterer (show on left/received).
+    This is the only reliable way to classify messages correctly regardless of
+    which admin is logged in.
+  */
+  const [adminIdSet, setAdminIdSet] = useState(new Set());
 
-  const bottomRef   = useRef(null);
-  const channelRef  = useRef(null);
+  const [caterers,   setCaterers]   = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [selected,   setSelected]   = useState(null);
+  const [messages,   setMessages]   = useState([]);
+  const [msgLoading, setMsgLoading] = useState(false);
+  const [input,      setInput]      = useState('');
+  const [sending,    setSending]    = useState(false);
+  const [error,      setError]      = useState('');
 
-  /* ── 1. Bootstrap: get admin id + caterers ── */
+  const bottomRef  = useRef(null);
+  const channelRef = useRef(null);
+
+  /* ══════════════════════════════════════════
+     1. BOOTSTRAP — current user + all admin IDs + caterers
+  ══════════════════════════════════════════ */
   useEffect(() => {
     const init = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        setAdminId(user?.id || null);
+        const myId = user?.id ?? null;
+        setAdminId(myId);
 
-        const { data: cats } = await supabase
-          .from('caterers')
-          .select('caterer_id, name, manager_name, phone_no')
-          .order('name');
+        const [{ data: cats }, { data: adminProfiles }] = await Promise.all([
+          supabase
+            .from('caterers')
+            .select('caterer_id, name, manager_name, phone_no')
+            .order('name'),
+          supabase
+            .from('profiles')
+            .select('id')
+            .eq('role', 'admin'),
+        ]);
 
         setCaterers(cats || []);
+        setAdminIdSet(new Set((adminProfiles || []).map(p => p.id)));
       } catch (err) {
-        console.error(err);
+        console.error('init error', err);
       } finally {
         setLoading(false);
       }
@@ -80,12 +110,10 @@ const MessagesView = () => {
     init();
   }, []);
 
-  /* ── 2. Scroll to bottom on new messages ── */
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  /* ── 3. Fetch messages for a given channel ── */
+  /* ══════════════════════════════════════════
+     2. FETCH MESSAGES — split into clean separate queries to avoid
+        broken PostgREST compound-AND-with-is-null syntax
+  ══════════════════════════════════════════ */
   const fetchMessages = useCallback(async (sel, myAdminId) => {
     if (!sel || !myAdminId) return;
     setMsgLoading(true);
@@ -93,100 +121,134 @@ const MessagesView = () => {
     setError('');
 
     try {
-      let query;
-
       if (sel.caterer_id === BROADCAST_ID) {
         /*
-          Broadcast channel: show all messages where reciever_id IS NULL.
-          This includes admin broadcasts AND caterer-to-all-admins messages.
+          BROADCAST CHANNEL
+          Show every message where reciever_id IS NULL.
+          This covers:
+            • Admin → all caterers  (sender is admin,   reciever null)
+            • Caterer → all admins  (sender is caterer, reciever null)
         */
-        query = supabase
+        const { data, error: e } = await supabase
           .from('messages')
           .select('id, sender_id, reciever_id, message, message_time')
           .is('reciever_id', null)
           .order('message_time', { ascending: true });
 
+        if (e) throw e;
+        setMessages(data || []);
+
       } else {
         /*
-          Direct channel with a specific caterer:
-          Show:
-            A) Admin → caterer direct  (sender=admin,   reciever=caterer)
-            B) Caterer → admin direct  (sender=caterer, reciever=admin)
-            C) Admin broadcasts        (sender=admin,   reciever=null)   ← visible in every caterer chat
-            D) Caterer → admins bcast  (sender=caterer, reciever=null)   ← caterer's broadcast, shown here
+          DIRECT CHANNEL with a specific caterer.
+
+          We need 4 categories:
+            A. admin  → caterer  direct   (sender=myAdmin,  reciever=caterer)
+            B. caterer → admin   direct   (sender=caterer,  reciever=myAdmin)
+            C. admin  broadcast           (sender=myAdmin,  reciever=null)
+            D. caterer broadcast to admins(sender=caterer,  reciever=null)
+
+          Strategy: run three simple queries (no nested compound ORs) then merge.
         */
         const catererId = sel.caterer_id;
 
-        const { data, error: qErr } = await supabase
-          .from('messages')
-          .select('id, sender_id, reciever_id, message, message_time')
-          .or(
-            // A: admin→caterer direct
-            `and(sender_id.eq.${myAdminId},reciever_id.eq.${catererId}),` +
-            // B: caterer→admin direct
-            `and(sender_id.eq.${catererId},reciever_id.eq.${myAdminId}),` +
-            // C: admin broadcast (null reciever)
-            `and(sender_id.eq.${myAdminId},reciever_id.is.null),` +
-            // D: caterer broadcast to admins (null reciever)
-            `and(sender_id.eq.${catererId},reciever_id.is.null)`
-          )
-          .order('message_time', { ascending: true });
+        const [p2pResult, adminBcastResult, catBcastResult] = await Promise.all([
+          // A + B — direct P2P between this admin and this caterer
+          supabase
+            .from('messages')
+            .select('id, sender_id, reciever_id, message, message_time')
+            .or(
+              `and(sender_id.eq.${myAdminId},reciever_id.eq.${catererId}),` +
+              `and(sender_id.eq.${catererId},reciever_id.eq.${myAdminId})`
+            )
+            .order('message_time', { ascending: true }),
 
-        if (qErr) throw qErr;
-        setMessages(data || []);
-        setMsgLoading(false);
-        return;
+          // C — admin broadcasts (null receiver, sent by this admin)
+          supabase
+            .from('messages')
+            .select('id, sender_id, reciever_id, message, message_time')
+            .eq('sender_id', myAdminId)
+            .is('reciever_id', null)
+            .order('message_time', { ascending: true }),
+
+          // D — caterer's broadcasts to all admins (null receiver, sent by this caterer)
+          supabase
+            .from('messages')
+            .select('id, sender_id, reciever_id, message, message_time')
+            .eq('sender_id', catererId)
+            .is('reciever_id', null)
+            .order('message_time', { ascending: true }),
+        ]);
+
+        if (p2pResult.error)        throw p2pResult.error;
+        if (adminBcastResult.error) throw adminBcastResult.error;
+        if (catBcastResult.error)   throw catBcastResult.error;
+
+        // Merge, dedupe, sort by time
+        const merged = dedupe([
+          ...(p2pResult.data        || []),
+          ...(adminBcastResult.data || []),
+          ...(catBcastResult.data   || []),
+        ]).sort((a, b) => new Date(a.message_time) - new Date(b.message_time));
+
+        setMessages(merged);
       }
-
-      const { data, error: qErr } = await query;
-      if (qErr) throw qErr;
-      setMessages(data || []);
     } catch (err) {
-      console.error(err);
+      console.error('fetchMessages error', err);
       setError('Failed to load messages. Please try again.');
     } finally {
       setMsgLoading(false);
     }
   }, []);
 
-  /* ── 4. Real-time subscription ── */
+  /* ══════════════════════════════════════════
+     3. REAL-TIME SUBSCRIPTION
+  ══════════════════════════════════════════ */
   useEffect(() => {
     if (!selected || !adminId) return;
 
-    // Tear down previous channel
     if (channelRef.current) {
       supabase.removeChannel(channelRef.current);
       channelRef.current = null;
     }
 
+    const catererId = selected.caterer_id;
+
     const ch = supabase
-      .channel(`messages-${selected.caterer_id}-${Date.now()}`)
+      .channel(`msg-${catererId}-${Date.now()}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'messages' },
         (payload) => {
           const msg = payload.new;
-          const catererId = selected.caterer_id;
+          const senderIsAdmin   = adminIdSet.has(msg.sender_id);
+          const isBroadcast     = msg.reciever_id === null;
 
           let relevant = false;
 
           if (catererId === BROADCAST_ID) {
-            // Broadcast channel: only null-reciever messages
-            relevant = msg.reciever_id === null;
+            // Broadcast channel: only null-receiver messages
+            relevant = isBroadcast;
           } else {
-            // Direct channel: messages A, B, C, D as described above
-            const isAdminToCaterer    = msg.sender_id === adminId   && msg.reciever_id === catererId;
-            const isCatererToAdmin    = msg.sender_id === catererId && msg.reciever_id === adminId;
-            const isAdminBroadcast    = msg.sender_id === adminId   && msg.reciever_id === null;
-            const isCatererBroadcast  = msg.sender_id === catererId && msg.reciever_id === null;
-            relevant = isAdminToCaterer || isCatererToAdmin || isAdminBroadcast || isCatererBroadcast;
+            // Category A: direct admin → caterer
+            const isAdminToCaterer = senderIsAdmin && msg.reciever_id === catererId;
+            // Category B: direct caterer → admin
+            const isCatererToAdmin = msg.sender_id === catererId && !isBroadcast && adminIdSet.has(msg.reciever_id);
+            // Category C: admin broadcast
+            const isAdminBroadcast = senderIsAdmin && isBroadcast;
+            // Category D: caterer broadcast
+            const isCatererBcast   = msg.sender_id === catererId && isBroadcast;
+
+            relevant = isAdminToCaterer || isCatererToAdmin || isAdminBroadcast || isCatererBcast;
           }
 
           if (relevant) {
             setMessages(prev => {
-              // Avoid duplicates (optimistic insert)
+              // Ignore if already present (covers optimistic inserts)
               if (prev.find(m => m.id === msg.id)) return prev;
-              return [...prev, msg];
+              const updated = [...prev, msg];
+              updated.sort((a, b) => new Date(a.message_time) - new Date(b.message_time));
+              return updated;
             });
           }
         }
@@ -194,26 +256,35 @@ const MessagesView = () => {
       .subscribe();
 
     channelRef.current = ch;
+    return () => { supabase.removeChannel(ch); channelRef.current = null; };
+  }, [selected, adminId, adminIdSet]);
 
-    return () => {
-      supabase.removeChannel(ch);
-      channelRef.current = null;
-    };
-  }, [selected, adminId]);
-
-  /* ── 5. Fetch messages when selection changes ── */
+  /* ══════════════════════════════════════════
+     4. RE-FETCH ON SELECTION CHANGE
+  ══════════════════════════════════════════ */
   useEffect(() => {
     if (selected && adminId) fetchMessages(selected, adminId);
   }, [selected, adminId, fetchMessages]);
 
-  /* ── 6. Select a channel ── */
+  /* ══════════════════════════════════════════
+     5. SCROLL
+  ══════════════════════════════════════════ */
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  /* ══════════════════════════════════════════
+     6. SELECT CHANNEL
+  ══════════════════════════════════════════ */
   const selectChannel = (item) => {
     setSelected(item);
     setInput('');
     setError('');
   };
 
-  /* ── 7. Send message ── */
+  /* ══════════════════════════════════════════
+     7. SEND
+  ══════════════════════════════════════════ */
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || !selected || !adminId || sending) return;
@@ -221,15 +292,15 @@ const MessagesView = () => {
     setSending(true);
     setError('');
 
-    const isBroadcast = selected.caterer_id === BROADCAST_ID;
+    const isBcast = selected.caterer_id === BROADCAST_ID;
     const payload = {
       sender_id:    adminId,
-      reciever_id:  isBroadcast ? null : selected.caterer_id,
+      reciever_id:  isBcast ? null : selected.caterer_id,
       message:      text,
       message_time: new Date().toISOString(),
     };
 
-    // Optimistic insert
+    // Optimistic insert with a temp string ID
     const tempId = `temp-${Date.now()}`;
     setMessages(prev => [...prev, { id: tempId, ...payload }]);
     setInput('');
@@ -242,13 +313,11 @@ const MessagesView = () => {
         .single();
 
       if (insErr) throw insErr;
-
-      // Replace temp with real row
+      // Swap temp row for real DB row
       setMessages(prev => prev.map(m => m.id === tempId ? data : m));
     } catch (err) {
-      console.error(err);
-      setError('Failed to send message. Please try again.');
-      // Remove optimistic message
+      console.error('send error', err);
+      setError('Failed to send. Please try again.');
       setMessages(prev => prev.filter(m => m.id !== tempId));
     } finally {
       setSending(false);
@@ -259,21 +328,18 @@ const MessagesView = () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
-  /* ── Helpers for render ── */
+  /* ══════════════════════════════════════════
+     8. RENDER MESSAGES
+        Role logic (applied per message, not per component mount):
+          • msg.sender_id is in adminIdSet  → ADMIN sent it  → right side (sent)
+          • msg.sender_id not in adminIdSet → CATERER sent it → left side (received)
+          • msg.reciever_id === null         → broadcast
+  ══════════════════════════════════════════ */
   const isBroadcastChannel = selected?.caterer_id === BROADCAST_ID;
 
-  const getMessageRole = (msg) => {
-    if (!adminId) return 'unknown';
-    if (msg.sender_id === adminId) return 'admin';
-    return 'caterer';
-  };
+  const getCatererName = (senderId) =>
+    caterers.find(c => c.caterer_id === senderId)?.name || 'Caterer';
 
-  const getCatererName = (senderId) => {
-    const cat = caterers.find(c => c.caterer_id === senderId);
-    return cat?.name || 'Caterer';
-  };
-
-  /* Render messages with date separators */
   const renderMessages = () => {
     if (!messages.length) return (
       <div style={{
@@ -283,8 +349,10 @@ const MessagesView = () => {
       }}>
         <MessageSquareDashed size={44} style={{ opacity: 0.2 }} />
         <p style={{ margin: 0, fontWeight: 600, fontSize: '0.9rem' }}>No messages yet</p>
-        <p style={{ margin: 0, fontSize: '0.78rem' }}>
-          {isBroadcastChannel ? 'Send a broadcast to all caterers below' : `Start a conversation with ${selected?.name}`}
+        <p style={{ margin: 0, fontSize: '0.78rem', textAlign: 'center' }}>
+          {isBroadcastChannel
+            ? 'Send a broadcast to all caterers below'
+            : `Start a conversation with ${selected?.name}`}
         </p>
       </div>
     );
@@ -293,8 +361,10 @@ const MessagesView = () => {
     let lastDate = null;
 
     messages.forEach((msg, i) => {
-      const ts   = msg.message_time;
-      const role = getMessageRole(msg);
+      const ts         = msg.message_time;
+      const senderIsAdmin = adminIdSet.has(msg.sender_id) || msg.sender_id?.startsWith('temp-');
+      const isBcast    = msg.reciever_id === null;
+      const isSent     = senderIsAdmin; // admin-side: admin messages go right
 
       // Date separator
       if (!lastDate || !isSameDay(lastDate, ts)) {
@@ -302,8 +372,15 @@ const MessagesView = () => {
         lastDate = ts;
       }
 
-      const isSent = role === 'admin';
-      const isBcast= msg.reciever_id === null;
+      // Sender label (shown above bubble for non-sent, or when broadcast on sent side)
+      let senderLabel = null;
+      if (isSent && isBcast) {
+        senderLabel = `You · 📢 Broadcast to all`;
+      } else if (!isSent) {
+        senderLabel = isBcast
+          ? `${getCatererName(msg.sender_id)} · to all admins`
+          : getCatererName(msg.sender_id);
+      }
 
       items.push(
         <div
@@ -312,25 +389,16 @@ const MessagesView = () => {
             display: 'flex',
             flexDirection: 'column',
             alignItems: isSent ? 'flex-end' : 'flex-start',
-            marginBottom: '4px',
+            marginBottom: '6px',
           }}
         >
-          {/* Sender label for broadcast channel or caterer messages */}
-          {(!isSent || (isBroadcastChannel && isBcast)) && (
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '3px',
-              paddingLeft: isSent ? 0 : '4px', paddingRight: isSent ? '4px' : 0,
+          {senderLabel && (
+            <span style={{
+              fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '3px',
+              paddingLeft: isSent ? 0 : '4px',
+              paddingRight: isSent ? '4px' : 0,
             }}>
-              {isSent
-                ? `You${isBcast ? ' · 📢 Broadcast' : ''}`
-                : `${getCatererName(msg.sender_id)}${isBcast ? ' · to all admins' : ''}`
-              }
-            </span>
-          )}
-
-          {/* Broadcast badge on sent side */}
-          {isSent && isBcast && !isBroadcastChannel && (
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginBottom: '3px', paddingRight: '4px' }}>
-              You · 📢 Broadcast
+              {senderLabel}
             </span>
           )}
 
@@ -338,21 +406,24 @@ const MessagesView = () => {
             maxWidth: '65%',
             padding: '10px 14px',
             borderRadius: isSent ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-            fontSize: '0.875rem', lineHeight: 1.5,
+            fontSize: '0.875rem',
+            lineHeight: 1.5,
+            // Colour scheme:
+            //   Admin direct   → green (sent)
+            //   Admin broadcast→ purple (sent)
+            //   Caterer direct → bg-hover (received)
+            //   Caterer bcast  → subtle purple tint (received)
             background: isSent
-              ? isBcast
-                ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)'   // purple gradient for broadcast
-                : 'var(--primary-green)'                          // green for direct
-              : 'var(--bg-hover)',
+              ? (isBcast ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)' : 'var(--primary-green)')
+              : (isBcast ? 'rgba(108,92,231,0.12)' : 'var(--bg-hover)'),
             color: isSent ? '#fff' : 'var(--text-main)',
-            border: isSent ? 'none' : '1px solid var(--border-color)',
-            boxShadow: isSent ? '0 2px 8px rgba(0,0,0,0.12)' : 'none',
-            position: 'relative',
+            border: isSent ? 'none' : (isBcast ? '1px solid rgba(108,92,231,0.25)' : '1px solid var(--border-color)'),
+            boxShadow: isSent ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
           }}>
             {msg.message}
             <div style={{
               fontSize: '0.65rem', marginTop: '5px', textAlign: 'right',
-              opacity: isSent ? 0.75 : 0.6,
+              opacity: isSent ? 0.75 : 0.55,
             }}>
               {fmtTime(ts)}
             </div>
@@ -364,61 +435,49 @@ const MessagesView = () => {
     return items;
   };
 
-  /* ─────────────────────────────────────────────
-     LOADING STATE
-  ───────────────────────────────────────────── */
+  /* ══════════════════════════════════════════
+     LOADING GATE
+  ══════════════════════════════════════════ */
   if (loading) return (
     <div className="admin-loading">
       <Loader2 size={22} className="spin" /> Loading messages…
     </div>
   );
 
-  /* ─────────────────────────────────────────────
+  /* ══════════════════════════════════════════
      RENDER
-  ───────────────────────────────────────────── */
+  ══════════════════════════════════════════ */
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+    <div className="messages-layout">
 
-      <div className="messages-layout">
-        {/* ── Sidebar ── */}
-        <div className="messages-sidebar">
-          <div className="messages-sidebar-header">Conversations</div>
+      {/* ── Sidebar ── */}
+      <div className="messages-sidebar">
+        <div className="messages-sidebar-header">Conversations</div>
+        <div className="caterer-list">
 
-          <div className="caterer-list">
-            {/* Broadcast channel — always at top */}
-            <div
-              className={`caterer-item ${selected?.caterer_id === BROADCAST_ID ? 'active' : ''}`}
-              onClick={() => selectChannel({ caterer_id: BROADCAST_ID, name: 'Broadcast — All Caterers' })}
-              style={{
-                borderBottom: '1px solid var(--border-color)',
-                marginBottom: '6px',
-                paddingBottom: '10px',
-              }}
-            >
-              <div
-                className="caterer-avatar"
-                style={{
-                  background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)',
-                  borderRadius: '10px',
-                  fontSize: '0.9rem',
-                }}
-              >
-                <Radio size={16} />
-              </div>
-              <div>
-                <div className="caterer-item-name" style={{ color: 'var(--primary-blue)' }}>
-                  📢 Broadcast All
-                </div>
-                <div className="caterer-item-sub">Send to all caterers at once</div>
-              </div>
+          {/* Broadcast — pinned at top */}
+          <div
+            className={`caterer-item ${selected?.caterer_id === BROADCAST_ID ? 'active' : ''}`}
+            onClick={() => selectChannel({ caterer_id: BROADCAST_ID, name: 'Broadcast — All Caterers' })}
+            style={{ borderBottom: '1px solid var(--border-color)', marginBottom: '6px', paddingBottom: '10px' }}
+          >
+            <div className="caterer-avatar" style={{
+              background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)',
+              borderRadius: '10px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Radio size={16} />
             </div>
+            <div>
+              <div className="caterer-item-name" style={{ color: 'var(--primary-blue)' }}>📢 Broadcast All</div>
+              <div className="caterer-item-sub">Send to all caterers at once</div>
+            </div>
+          </div>
 
-            {/* Individual caterers */}
-            {caterers.length === 0 ? (
-              <div className="admin-empty" style={{ padding: '20px 10px' }}>
-                <p style={{ margin: 0, fontSize: '0.85rem' }}>No caterers found</p>
-              </div>
-            ) : caterers.map(c => (
+          {/* Individual caterers */}
+          {caterers.length === 0
+            ? <div className="admin-empty" style={{ padding: '20px 10px' }}><p style={{ margin: 0, fontSize: '0.85rem' }}>No caterers found</p></div>
+            : caterers.map(c => (
               <div
                 key={c.caterer_id}
                 className={`caterer-item ${selected?.caterer_id === c.caterer_id ? 'active' : ''}`}
@@ -430,158 +489,136 @@ const MessagesView = () => {
                   <div className="caterer-item-sub">{c.manager_name || 'Manager'}</div>
                 </div>
               </div>
-            ))}
+            ))
+          }
+        </div>
+      </div>
+
+      {/* ── Chat area ── */}
+      <div className="chat-area">
+        {!selected ? (
+          <div className="chat-empty">
+            <MessageSquareDashed size={60} className="chat-empty-icon" />
+            <p style={{ margin: 0, fontWeight: 600 }}>Select a conversation</p>
+            <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              Choose a caterer for direct messaging,<br />or use Broadcast to reach all caterers.
+            </p>
           </div>
-        </div>
-
-        {/* ── Chat area ── */}
-        <div className="chat-area">
-          {!selected ? (
-            /* Nothing selected */
-            <div className="chat-empty">
-              <MessageSquareDashed size={60} className="chat-empty-icon" />
-              <p style={{ margin: 0, fontWeight: 600 }}>Select a conversation</p>
-              <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center' }}>
-                Choose a caterer for direct messaging,<br />or use Broadcast to reach all caterers.
-              </p>
-            </div>
-          ) : (
-            <>
-              {/* Chat header */}
-              <div className="chat-header">
-                {isBroadcastChannel ? (
-                  <div style={{
-                    width: 40, height: 40, borderRadius: '10px', flexShrink: 0,
-                    background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Radio size={18} color="#fff" />
-                  </div>
-                ) : (
-                  <div className="caterer-avatar" style={{ width: 40, height: 40, fontSize: '0.8rem', flexShrink: 0 }}>
-                    {getInitials(selected.name)}
-                  </div>
-                )}
-                <div style={{ flex: 1 }}>
-                  <div className="chat-header-name">
-                    {isBroadcastChannel ? '📢 Broadcast — All Caterers' : selected.name}
-                  </div>
-                  <div className="chat-header-sub">
-                    {isBroadcastChannel
-                      ? `Message delivered to all ${caterers.length} caterer${caterers.length !== 1 ? 's' : ''}`
-                      : `${selected.manager_name ? `${selected.manager_name} · ` : ''}${selected.phone_no || 'No phone on file'}`
-                    }
-                  </div>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="chat-header">
+              {isBroadcastChannel ? (
+                <div style={{
+                  width: 40, height: 40, borderRadius: '10px', flexShrink: 0,
+                  background: 'linear-gradient(135deg, #6c5ce7, #a29bfe)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  <Radio size={18} color="#fff" />
                 </div>
-
-                {/* Broadcast badge in header */}
-                {isBroadcastChannel && (
-                  <span style={{
-                    padding: '4px 12px', borderRadius: '20px',
-                    background: 'rgba(108,92,231,0.12)',
-                    color: 'var(--primary-blue)',
-                    fontSize: '0.72rem', fontWeight: 700,
-                    border: '1px solid rgba(108,92,231,0.2)',
-                  }}>
-                    BROADCAST
-                  </span>
-                )}
+              ) : (
+                <div className="caterer-avatar" style={{ width: 40, height: 40, fontSize: '0.8rem', flexShrink: 0 }}>
+                  {getInitials(selected.name)}
+                </div>
+              )}
+              <div style={{ flex: 1 }}>
+                <div className="chat-header-name">
+                  {isBroadcastChannel ? '📢 Broadcast — All Caterers' : selected.name}
+                </div>
+                <div className="chat-header-sub">
+                  {isBroadcastChannel
+                    ? `Sends to all ${caterers.length} caterer${caterers.length !== 1 ? 's' : ''}`
+                    : `${selected.manager_name ? `${selected.manager_name} · ` : ''}${selected.phone_no || 'No phone on file'}`
+                  }
+                </div>
               </div>
-
-              {/* Broadcast notice */}
               {isBroadcastChannel && (
-                <div style={{
-                  margin: '0 16px 0', padding: '9px 14px',
-                  background: 'rgba(108,92,231,0.07)',
+                <span style={{
+                  padding: '4px 12px', borderRadius: '20px',
+                  background: 'rgba(108,92,231,0.12)', color: 'var(--primary-blue)',
+                  fontSize: '0.72rem', fontWeight: 700,
                   border: '1px solid rgba(108,92,231,0.2)',
-                  borderRadius: '10px',
-                  fontSize: '0.78rem', color: 'var(--text-muted)',
-                  display: 'flex', gap: '8px', alignItems: 'center',
                 }}>
-                  <Radio size={14} color="var(--primary-blue)" style={{ flexShrink: 0 }} />
-                  Messages sent here are delivered to <strong style={{ color: 'var(--text-main)' }}>all caterers</strong>.
-                  Each caterer will see this in their message thread with the admin.
-                  Broadcast messages appear in purple.
-                </div>
+                  BROADCAST
+                </span>
               )}
+            </div>
 
-              {/* Direct channel broadcast notice */}
-              {!isBroadcastChannel && (
-                <div style={{
-                  margin: '0 16px 0', padding: '8px 14px',
-                  background: 'var(--bg-hover)',
-                  borderRadius: '10px',
-                  fontSize: '0.76rem', color: 'var(--text-muted)',
-                  display: 'flex', gap: '8px', alignItems: 'center',
-                }}>
-                  <span>💬 Direct messages · </span>
-                  <span>📢 Purple bubbles are admin broadcasts visible to all caterers</span>
-                </div>
+            {/* Contextual hint bar */}
+            <div style={{
+              margin: '0 16px',
+              padding: '8px 14px',
+              background: isBroadcastChannel ? 'rgba(108,92,231,0.07)' : 'var(--bg-hover)',
+              border: isBroadcastChannel ? '1px solid rgba(108,92,231,0.2)' : '1px solid var(--border-color)',
+              borderRadius: '10px',
+              fontSize: '0.75rem', color: 'var(--text-muted)',
+              display: 'flex', gap: '8px', alignItems: 'center',
+            }}>
+              {isBroadcastChannel ? (
+                <><Radio size={13} color="var(--primary-blue)" style={{ flexShrink: 0 }} />
+                Messages sent here go to <strong style={{ color: 'var(--text-main)' }}>all caterers</strong>. Purple bubbles = broadcast.</>
+              ) : (
+                <>💬 Direct messages with {selected.name} · 📢 Purple = admin broadcast (visible to all caterers)</>
               )}
+            </div>
 
-              {/* Messages */}
-              <div className="chat-messages" style={{ paddingTop: '12px' }}>
-                {msgLoading ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '8px', color: 'var(--text-muted)' }}>
-                    <Loader2 size={18} className="spin" /> Loading messages…
-                  </div>
-                ) : (
-                  renderMessages()
-                )}
-                <div ref={bottomRef} />
+            {/* Messages */}
+            <div className="chat-messages" style={{ paddingTop: '12px' }}>
+              {msgLoading ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '8px', color: 'var(--text-muted)' }}>
+                  <Loader2 size={18} className="spin" /> Loading messages…
+                </div>
+              ) : renderMessages()}
+              <div ref={bottomRef} />
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div style={{
+                margin: '0 16px', padding: '8px 14px',
+                background: 'rgba(231,76,60,0.08)', border: '1px solid rgba(231,76,60,0.2)',
+                borderRadius: '10px', fontSize: '0.78rem',
+                color: 'var(--danger)', display: 'flex', gap: '8px', alignItems: 'center',
+              }}>
+                <AlertCircle size={14} /> {error}
               </div>
+            )}
 
-              {/* Error */}
-              {error && (
-                <div style={{
-                  margin: '0 16px', padding: '8px 14px',
-                  background: 'rgba(231,76,60,0.08)',
-                  border: '1px solid rgba(231,76,60,0.2)',
-                  borderRadius: '10px', fontSize: '0.78rem',
-                  color: 'var(--danger)', display: 'flex', gap: '8px', alignItems: 'center',
-                }}>
-                  <AlertCircle size={14} /> {error}
-                </div>
-              )}
-
-              {/* Input row */}
-              <div className="chat-input-row">
-                <textarea
-                  className="chat-input"
-                  rows={1}
-                  placeholder={
-                    isBroadcastChannel
-                      ? `Broadcast to all ${caterers.length} caterers…`
-                      : `Message ${selected.name}…`
-                  }
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={sending}
-                />
-                <button
-                  className="chat-send-btn"
-                  onClick={sendMessage}
-                  disabled={sending || !input.trim()}
-                  title={isBroadcastChannel ? 'Broadcast to all caterers' : 'Send message'}
-                  style={{
-                    background: isBroadcastChannel
-                      ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)'
-                      : 'var(--primary-green)',
-                    opacity: (!input.trim() || sending) ? 0.5 : 1,
-                  }}
-                >
-                  {sending
-                    ? <Loader2 size={16} className="spin" />
-                    : isBroadcastChannel
-                      ? <Radio size={17} />
-                      : <Send size={17} />
-                  }
-                </button>
-              </div>
-            </>
-          )}
-        </div>
+            {/* Input */}
+            <div className="chat-input-row">
+              <textarea
+                className="chat-input"
+                rows={1}
+                placeholder={
+                  isBroadcastChannel
+                    ? `Broadcast to all ${caterers.length} caterers…`
+                    : `Message ${selected.name}…`
+                }
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={sending}
+              />
+              <button
+                className="chat-send-btn"
+                onClick={sendMessage}
+                disabled={sending || !input.trim()}
+                title={isBroadcastChannel ? 'Broadcast to all caterers' : 'Send message'}
+                style={{
+                  background: isBroadcastChannel
+                    ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)'
+                    : 'var(--primary-green)',
+                  opacity: (!input.trim() || sending) ? 0.5 : 1,
+                }}
+              >
+                {sending
+                  ? <Loader2 size={16} className="spin" />
+                  : isBroadcastChannel ? <Radio size={17} /> : <Send size={17} />
+                }
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

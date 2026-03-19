@@ -469,7 +469,7 @@ const MessagesView = () => {
               <Radio size={16} />
             </div>
             <div>
-              <div className="caterer-item-name" style={{ color: 'var(--primary-blue)' }}>📢 Broadcast All</div>
+              <div className="caterer-item-name" style={{ color: 'var(--primary-blue)' }}>📢 Broadcast</div>
               <div className="caterer-item-sub">Send to all caterers at once</div>
             </div>
           </div>

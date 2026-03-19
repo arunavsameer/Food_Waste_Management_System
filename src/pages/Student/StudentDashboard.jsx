@@ -1,24 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-import { Calendar, MessageSquare, TrendingUp, LogOut, Menu, X, Check, AlertCircle, Gamepad2 } from 'lucide-react'; 
+import {
+  Calendar, MessageSquare, TrendingUp, LogOut, Menu, X,
+  Check, AlertCircle, Gamepad2, User, UtensilsCrossed,
+  Building2, Sun, Moon, Hash
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../../context/ThemeContext';
 import './Student.css';
 
 import CalendarView from './components/CalendarView';
 import FeedbackView from './components/FeedbackView';
 import TrendsView from './components/TrendsView';
-import GameView from './components/GameView'; 
+import GameView from './components/GameView';
+
+// Helper: first two initials from a full name
+const getInitials = (name) => {
+  if (!name) return 'ST';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+};
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
+
   const [studentProfile, setStudentProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showProfile, setShowProfile] = useState(false);
+  const profileRef = useRef(null);
 
   // --- GAMIFICATION STATE ---
-  const [credits, setCredits] = useState(0); // Set initial to 0
+  const [credits, setCredits] = useState(0);
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setShowProfile(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchProfileAndStats = async () => {
@@ -26,7 +53,6 @@ const StudentDashboard = () => {
         const { data: { user } } = await supabase.auth.getUser();
 
         if (user) {
-          // 1. Fetch Profile
           const { data, error } = await supabase
             .from('profiles')
             .select(`*, students (*)`)
@@ -36,7 +62,6 @@ const StudentDashboard = () => {
           if (error) throw error;
           setStudentProfile(data);
 
-          // 2. Fetch or Initialize Tokens
           const { data: scoreData } = await supabase
             .from('player_score')
             .select('game_points')
@@ -46,7 +71,6 @@ const StudentDashboard = () => {
           if (scoreData) {
             setCredits(scoreData.game_points);
           } else {
-            // Give them a row with 0 tokens if it's their first time logging in
             await supabase.from('player_score').insert([{ student_id: user.id, game_points: 0, high_score: 0, attempts_count: 0 }]);
             setCredits(0);
           }
@@ -70,14 +94,17 @@ const StudentDashboard = () => {
   };
 
   const handleFeedbackSuccess = () => {
-    setCredits(prev => prev + 1); // Update local state (DB is updated in FeedbackView)
+    setCredits(prev => prev + 1);
     triggerToast('success', 'Feedback sent! +1 Game Token 🪙');
     setActiveTab('calendar');
   };
 
   const handleConsumeCredit = () => {
-    setCredits(prev => Math.max(0, prev - 1)); // Decrement local state visually
+    setCredits(prev => Math.max(0, prev - 1));
   };
+
+  const studentName = studentProfile?.students?.name || '';
+  const initials = getInitials(studentName);
 
   return (
     <div className="dashboard-container">
@@ -98,7 +125,7 @@ const StudentDashboard = () => {
             {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
-        
+
         <nav className="nav-menu">
           <button className={`nav-item ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
             <Calendar size={20} />
@@ -119,7 +146,7 @@ const StudentDashboard = () => {
         </nav>
 
         <div className="sidebar-footer">
-            <button className="logout-btn" onClick={handleLogout} title="Logout">
+          <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
             {isSidebarOpen && <span>Logout</span>}
           </button>
@@ -130,60 +157,89 @@ const StudentDashboard = () => {
       <main className="main-content">
         <header className="top-bar">
           <div className="page-title">
-             {activeTab === 'calendar' && 'Mess Performance Calendar'}
-             {activeTab === 'feedback' && 'Daily Meal Feedback'}
-             {activeTab === 'trends' && 'My Feedback History'}
-             {activeTab === 'game' && 'Arcade Zone'}
+            {activeTab === 'calendar' && 'Mess Performance Calendar'}
+            {activeTab === 'feedback' && 'Daily Meal Feedback'}
+            {activeTab === 'trends' && 'My Feedback History'}
+            {activeTab === 'game' && 'Arcade Zone'}
           </div>
           <div className="user-info">
-            <div className="credit-badge" onClick={() => setActiveTab('game')} style={{cursor: 'pointer', marginRight: '15px', display: 'flex', alignItems: 'center', gap: '5px', background: 'var(--bg-hover)', padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem', fontWeight: 'bold', color: '#f1c40f'}}>
-                <span style={{fontSize: '1.2rem'}}>🪙</span> {credits}
+            {/* Credit Badge */}
+            <div
+              className="credit-badge"
+              onClick={() => setActiveTab('game')}
+              style={{
+                cursor: 'pointer', marginRight: '15px', display: 'flex',
+                alignItems: 'center', gap: '5px', background: 'var(--bg-hover)',
+                padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem',
+                fontWeight: 'bold', color: '#f1c40f'
+              }}
+            >
+              <span style={{ fontSize: '1.2rem' }}>🪙</span> {credits}
             </div>
 
+            {/* Mess Label */}
             <div className="user-details">
               <span className="label">CURRENT MESS</span>
               <span className="value">{studentProfile?.mess_name || 'Loading...'}</span>
             </div>
-            <div className="avatar" onClick={() => setShowProfile(prev => !prev)} style={{ cursor: 'pointer' }}>
-               {studentProfile?.email?.[0]?.toUpperCase() || 'S'}
+
+            {/* Avatar + Dropdown */}
+            <div className="profile-wrapper" ref={profileRef}>
+              <button
+                className="avatar-btn"
+                onClick={() => setShowProfile(prev => !prev)}
+                title="Profile"
+              >
+                {initials}
+              </button>
+
+              {showProfile && (
+                <div className="profile-dropdown">
+                  {/* ── Top: Avatar + Name ── */}
+                  <div className="pd-header">
+                    <div className="pd-avatar-large">{initials}</div>
+                    <p className="pd-name">{studentName || 'Student'}</p>
+                    <p className="pd-sub">{studentProfile?.email || ''}</p>
+                  </div>
+
+                  <div className="pd-divider" />
+
+                  {/* ── Info Rows ── */}
+                  <ul className="pd-menu">
+                    <li className="pd-item">
+                      <span className="pd-item-icon"><Building2 size={16} /></span>
+                      <span className="pd-item-label">Mess</span>
+                      <span className="pd-item-value">{studentProfile?.mess_name || '—'}</span>
+                    </li>
+                    <li className="pd-item">
+                      <span className="pd-item-icon"><UtensilsCrossed size={16} /></span>
+                      <span className="pd-item-label">Food Type</span>
+                      <span className="pd-item-value">{studentProfile?.students?.food_type || '—'}</span>
+                    </li>
+                    <li className="pd-item">
+                      <span className="pd-item-icon"><Hash size={16} /></span>
+                      <span className="pd-item-label">Roll No</span>
+                      <span className="pd-item-value">{studentProfile?.students?.roll_no || '—'}</span>
+                    </li>
+                  </ul>
+
+                  {/* <div className="pd-divider" /> */}
+                </div>
+              )}
             </div>
-            {showProfile && (
-              <div className="profile-dropdown">
-                <h4>Student Info</h4>
-                
-                <div className="profile-item">
-                  <span>Email:</span>
-                  <span>{studentProfile?.email || 'N/A'}</span>
-                </div>
-
-                <div className="profile-item">
-                  <span>Mess:</span>
-                  <span>{studentProfile?.mess_name || 'N/A'}</span>
-                </div>
-
-                <div className="profile-item">
-                  <span>Food Type:</span>
-                  <span>{studentProfile?.students?.food_type || 'N/A'}</span>
-                </div>
-
-                <button className="logout-btn" onClick={handleLogout}>
-                  Logout
-                </button>
-              </div>
-            )}
           </div>
         </header>
 
         <div className="content-area">
           {activeTab === 'calendar' && <CalendarView messName={studentProfile?.mess_name} />}
-          
+
           {activeTab === 'feedback' && (
-            <FeedbackView 
-              onSuccessfulSubmit={handleFeedbackSuccess} 
-              onError={(msg) => triggerToast('error', msg)} 
+            <FeedbackView
+              onSuccessfulSubmit={handleFeedbackSuccess}
+              onError={(msg) => triggerToast('error', msg)}
             />
           )}
-          
+
           {activeTab === 'trends' && <TrendsView />}
 
           {activeTab === 'game' && (

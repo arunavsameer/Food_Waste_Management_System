@@ -13,6 +13,7 @@ const emptyForm = {
   email: '', password: '', role: 'student', mess_name: '',
   name: '', roll_no: '', hostel: 'APJ', food_type: 'veg',
   manager_name: '', phone_no: '',
+  admin_name: '', admin_phone_no: '',
 };
 
 const UsersView = ({ triggerToast }) => {
@@ -31,7 +32,7 @@ const UsersView = ({ triggerToast }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, role, mess_name, created_at, students(name, roll_no, hostel, food_type)')
+        .select('id, email, role, mess_name, created_at, students(name, roll_no, hostel, food_type), admins(name, phone_no)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       setProfiles(data || []);
@@ -73,6 +74,8 @@ const UsersView = ({ triggerToast }) => {
       food_type: p.students?.food_type || 'veg',
       manager_name: '',
       phone_no: '',
+      admin_name: p.admins?.name || '',
+      admin_phone_no: p.admins?.phone_no || '',
     });
     setEditId(p.id);
     setModalError('');
@@ -126,6 +129,13 @@ const UsersView = ({ triggerToast }) => {
           manager_name: form.manager_name, phone_no: form.phone_no,
         }]);
         if (catErr) throw catErr;
+      } else if (form.role === 'admin') {
+        const { error: adminErr } = await supabase.from('admins').insert([{
+          admin_id: userId,
+          name: form.admin_name,
+          phone_no: form.admin_phone_no,
+        }]);
+        if (adminErr) throw adminErr;
       }
 
       triggerToast('success', 'User created successfully!');
@@ -155,6 +165,12 @@ const UsersView = ({ triggerToast }) => {
           .update({ name: form.name, hostel: form.hostel, food_type: form.food_type })
           .eq('id', editId);
         if (stuErr) throw stuErr;
+      } else if (form.role === 'admin') {
+        const { error: adminErr } = await supabase
+          .from('admins')
+          .update({ name: form.admin_name, phone_no: form.admin_phone_no })
+          .eq('admin_id', editId);
+        if (adminErr) throw adminErr;
       }
 
       triggerToast('success', 'User updated successfully!');
@@ -258,11 +274,11 @@ const UsersView = ({ triggerToast }) => {
                           color: '#fff', fontWeight: 700, fontSize: '0.75rem',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                          {getInitials(p.email, p.students?.name)}
+                          {getInitials(p.email, p.students?.name || p.admins?.name)}
                         </div>
                         <div>
                           <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>
-                            {p.students?.name || p.email?.split('@')[0]}
+                            {p.students?.name || p.admins?.name || p.email?.split('@')[0]}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.email}</div>
                         </div>
@@ -273,6 +289,9 @@ const UsersView = ({ triggerToast }) => {
                     <td className="muted">
                       {p.role === 'student' && p.students && (
                         <span>{p.students.roll_no} · {p.students.hostel} · {p.students.food_type}</span>
+                      )}
+                      {p.role === 'admin' && p.admins && (
+                        <span>{p.admins.phone_no || '—'}</span>
                       )}
                     </td>
                     <td className="muted">
@@ -382,6 +401,20 @@ const UsersView = ({ triggerToast }) => {
                   <div className="form-group">
                     <label className="form-label">Phone Number</label>
                     <input className="form-input" type="tel" name="phone_no" value={form.phone_no} onChange={handleChange} placeholder="+91 98765 43210" />
+                  </div>
+                </>
+              )}
+
+              {/* Admin fields */}
+              {form.role === 'admin' && (
+                <>
+                  <div className="form-group full">
+                    <label className="form-label">Full Name</label>
+                    <input className="form-input" type="text" name="admin_name" value={form.admin_name} onChange={handleChange} placeholder="Admin's Full Name" />
+                  </div>
+                  <div className="form-group full">
+                    <label className="form-label">Phone Number</label>
+                    <input className="form-input" type="tel" name="admin_phone_no" value={form.admin_phone_no} onChange={handleChange} placeholder="+91 98765 43210" />
                   </div>
                 </>
               )}

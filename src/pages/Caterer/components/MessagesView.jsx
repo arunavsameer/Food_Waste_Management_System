@@ -386,10 +386,10 @@ const MessagesView = () => {
       // Sender label
       let senderLabel = null;
       if (isSent && isBcast) {
-        senderLabel = 'You · 📢 Broadcast to all admins';
+        senderLabel = 'You · Broadcast to all admins';
       } else if (!isSent && senderIsAdmin) {
         senderLabel = isBcast
-          ? `${getAdminName(msg.sender_id)} · 📢 Broadcast to all caterers`
+          ? `${getAdminName(msg.sender_id)} · Broadcast to all caterers`
           : getAdminName(msg.sender_id);
       }
 
@@ -488,7 +488,7 @@ const MessagesView = () => {
             </div>
             <div>
               <div className="caterer-item-name" style={{ color: 'var(--primary-blue)' }}>
-                📢 Broadcast All
+                Broadcast All
               </div>
               <div className="caterer-item-sub">Send to all admins at once</div>
             </div>
@@ -549,7 +549,7 @@ const MessagesView = () => {
               )}
               <div style={{ flex: 1 }}>
                 <div className="chat-header-name">
-                  {isBroadcastChannel ? '📢 Broadcast — All Admins' : selected.name}
+                  {isBroadcastChannel ? 'Broadcast — All Admins' : selected.name}
                 </div>
                 <div className="chat-header-sub">
                   {isBroadcastChannel

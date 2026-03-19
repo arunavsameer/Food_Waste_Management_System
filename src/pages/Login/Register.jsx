@@ -222,7 +222,6 @@ const Register = () => {
               <div className="input-group">
                 <label>Hostel</label>
                 <div className="input-wrapper">
-                  <Building size={18} className="input-icon" />
                   {/* Converted to dropdown matching the DB enum exactly */}
                   <select name="hostel" value={formData.hostel} onChange={handleChange} className="styled-select">
                     <option value="APJ">APJ</option>
@@ -240,7 +239,6 @@ const Register = () => {
               <div className="input-group">
                 <label>Food Type</label>
                 <div className="input-wrapper">
-                  <Utensils size={18} className="input-icon" />
                   <select name="food_type" value={formData.food_type} onChange={handleChange} className="styled-select">
                     <option value="veg">Vegetarian</option>
                     <option value="non_veg">Non-Vegetarian</option>
@@ -265,7 +263,7 @@ const Register = () => {
                 <label>Phone Number</label>
                 <div className="input-wrapper">
                   <Phone size={18} className="input-icon" />
-                  <input type="tel" name="phone_no" placeholder="e.g., +91 9876543210" value={formData.phone_no} onChange={handleChange} required />
+                  <input type="text" name="phone_no" placeholder="e.g., +91 9876543210" value={formData.phone_no} onChange={handleChange} required />
                 </div>
               </div>
             </>
@@ -285,7 +283,7 @@ const Register = () => {
                 <label>Phone Number</label>
                 <div className="input-wrapper">
                   <Phone size={18} className="input-icon" />
-                  <input type="tel" name="admin_phone_no" placeholder="e.g., +91 9876543210" value={formData.admin_phone_no} onChange={handleChange} required />
+                  <input type="text" name="admin_phone_no" placeholder="e.g., +91 9876543210" value={formData.admin_phone_no} onChange={handleChange} required />
                 </div>
               </div>
             </>

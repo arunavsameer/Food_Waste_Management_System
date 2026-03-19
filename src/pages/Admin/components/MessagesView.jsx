@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Send, MessageSquareDashed, Loader2, Radio, AlertCircle } from 'lucide-react';
+import { Send, MessageSquareDashed, Loader2, Radio, AlertCircle, RefreshCw } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
    HELPERS
@@ -375,7 +375,7 @@ const MessagesView = () => {
       // Sender label (shown above bubble for non-sent, or when broadcast on sent side)
       let senderLabel = null;
       if (isSent && isBcast) {
-        senderLabel = `You · 📢 Broadcast to all`;
+        senderLabel = `You · Broadcast to all`;
       } else if (!isSent) {
         senderLabel = isBcast
           ? `${getCatererName(msg.sender_id)} · to all admins`
@@ -469,7 +469,7 @@ const MessagesView = () => {
               <Radio size={16} />
             </div>
             <div>
-              <div className="caterer-item-name" style={{ color: 'var(--primary-blue)' }}>📢 Broadcast</div>
+              <div className="caterer-item-name" style={{ color: 'var(--primary-blue)' }}>Broadcast</div>
               <div className="caterer-item-sub">Send to all caterers at once</div>
             </div>
           </div>
@@ -523,7 +523,7 @@ const MessagesView = () => {
               )}
               <div style={{ flex: 1 }}>
                 <div className="chat-header-name">
-                  {isBroadcastChannel ? '📢 Broadcast — All Caterers' : selected.name}
+                  {isBroadcastChannel ? 'Broadcast — All Caterers' : selected.name}
                 </div>
                 <div className="chat-header-sub">
                   {isBroadcastChannel
@@ -542,6 +542,14 @@ const MessagesView = () => {
                   BROADCAST
                 </span>
               )}
+              <button
+                className="icon-btn"
+                onClick={() => fetchMessages(selected, adminId)}
+                disabled={msgLoading}
+                title="Refresh messages"
+              >
+                <RefreshCw size={15} className={msgLoading ? 'spin' : ''} />
+              </button>
             </div>
 
             {/* Contextual hint bar */}
@@ -558,7 +566,7 @@ const MessagesView = () => {
                 <><Radio size={13} color="var(--primary-blue)" style={{ flexShrink: 0 }} />
                 Messages sent here go to <strong style={{ color: 'var(--text-main)' }}>all caterers</strong>. Purple bubbles = broadcast.</>
               ) : (
-                <>💬 Direct messages with {selected.name} · 📢 Purple = admin broadcast (visible to all caterers)</>
+                <>💬 Direct messages with {selected.name} · Purple = admin broadcast (visible to all caterers)</>
               )}
             </div>
 

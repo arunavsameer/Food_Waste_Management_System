@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
-// Added Phone to your imports!
-import { Trash2, Bell, History, MessageSquare, LogOut, Menu, X, Leaf, Phone } from 'lucide-react';
+import { Trash2, Bell, History, MessageSquare, LogOut, Menu, X, Phone, Sun, Moon } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../../context/ThemeContext';
 import './CatererDashboard.css';
 
-// Component Imports
 import LogWasteView from './components/LogWasteView';
 import MessagesView from './components/MessagesView';
 import MessFeedbackView from './components/MessFeedbackView';
@@ -13,11 +12,10 @@ import WasteHistoryView from './components/WasteHistoryView';
 
 const CatererDashboard = () => {
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useTheme();
   const [profile, setProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('log');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  
-  // --- Dropdown & Loading State ---
   const [isLoading, setIsLoading] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -26,28 +24,20 @@ const CatererDashboard = () => {
     const fetchProfile = async () => {
       setIsLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      
       if (user) {
-        // --- CORRECTED DATABASE FETCH ---
-        // Using 'caterers' table and 'caterer_id' based on your Supabase schema
         const { data, error } = await supabase
-          .from('caterers') 
+          .from('caterers')
           .select('*')
           .eq('caterer_id', user.id)
           .single();
-          
-        if (data) {
-          setProfile(data);
-        } else if (error) {
-          console.error("Error fetching profile:", error);
-        }
+        if (data) setProfile(data);
+        else if (error) console.error("Error fetching profile:", error);
       }
       setIsLoading(false);
     };
     fetchProfile();
   }, []);
 
-  // Handle clicking outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -60,10 +50,9 @@ const CatererDashboard = () => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/'); // Redirects to login page
+    navigate('/');
   };
 
-  // Helper to extract initials
   const getInitials = (name) => {
     if (!name) return 'CT';
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
@@ -101,15 +90,6 @@ const CatererDashboard = () => {
         </nav>
 
         <div className="sidebar-footer">
-          {/* {isSidebarOpen && (
-            <div className="impact-card">
-              <Leaf color="#28a745" size={20} />
-              <div className="impact-text">
-                <h4>Impact Score</h4>
-                <p>Waste reduced by 12%</p>
-              </div>
-            </div>
-          )} */}
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
             {isSidebarOpen && <span>Logout</span>}
@@ -117,64 +97,69 @@ const CatererDashboard = () => {
         </div>
       </aside>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <main className="main-content">
         <header className="top-bar">
           <div className="page-title">
-             {activeTab === 'log' && 'Log Daily Waste'}
-             {activeTab === 'messages' && 'Admin Messages'}
-             {activeTab === 'history' && 'Waste History'}
-             {activeTab === 'feedback' && 'Food Feedback (This Mess)'}
+            {activeTab === 'log' && 'Log Daily Waste'}
+            {activeTab === 'messages' && 'Admin Messages'}
+            {activeTab === 'history' && 'Waste History'}
+            {activeTab === 'feedback' && 'Food Feedback (This Mess)'}
           </div>
-          
-          {/* Interactive User Info Section */}
+
+          {/* ✅ Updated User Info with rich dropdown */}
           <div className="user-info" ref={dropdownRef}>
             <div className="user-details">
               <span className="label">CURRENT MESS</span>
               <span className="value">
-                {/* Changed to profile.name to match your database schema ("Sheela") */}
                 {isLoading ? 'Loading...' : (profile?.name || 'Unknown')}
               </span>
             </div>
-            
-            {/* Clickable Avatar */}
-            <div 
-              className="avatar" 
+
+            {/* Avatar */}
+            <div
+              className="avatar"
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               style={{ cursor: 'pointer', userSelect: 'none' }}
             >
               {isLoading ? '...' : getInitials(profile?.manager_name || profile?.name)}
             </div>
 
-            {/* --- UPDATED DROPDOWN DESIGN --- */}
+            {/* ✅ Rich Profile Dropdown — matches Student design */}
             {isProfileOpen && !isLoading && (
               <div className="profile-dropdown">
-                
-                {/* Gray inner box from your screenshot */}
-                <div className="profile-info-box">
-                  <p className="profile-name">{profile?.manager_name || profile?.name || 'Caterer Profile'}</p>
-                  
-                  <div className="profile-phone">
-                    <Phone size={14} className="phone-icon" strokeWidth={2.5} />
-                    <span>{profile?.phone_no || 'No phone provided'}</span>
+
+                {/* Header: avatar + name + mess */}
+                <div className="pd-header">
+                  <div className="pd-avatar-large" style={{
+                    background: 'linear-gradient(135deg, #e67e22 0%, #f39c12 100%)',
+                    boxShadow: '0 6px 20px rgba(230, 126, 34, 0.4)'
+                  }}>
+                    {getInitials(profile?.manager_name || profile?.name)}
                   </div>
+                  <p className="pd-name">{profile?.manager_name || profile?.name || 'Manager'}</p>
+                  <p className="pd-sub">{profile?.name || ''}</p>
                 </div>
-                
-                {/* Logout Button */}
-                <div className="profile-actions">
-                  <button onClick={handleLogout} className="dropdown-logout-btn">
-                    <LogOut size={18} strokeWidth={2} />
-                    Log out
-                  </button>
-                </div>
+
+                <div className="pd-divider" />
+
+                {/* Info rows */}
+                <ul className="pd-menu">
+                  <li className="pd-item">
+                    <span className="pd-item-icon">
+                      <Phone size={15} />
+                    </span>
+                    <span className="pd-item-label">Phone</span>
+                    <span className="pd-item-value">{profile?.phone_no || '—'}</span>
+                  </li>
+                </ul>
+
               </div>
             )}
           </div>
         </header>
 
-        {/* Content Area */}
         <div className="content-area">
-          {/* Note: Updated these props to use profile?.name based on your schema */}
           {activeTab === 'log' && <LogWasteView profile={profile} />}
           {activeTab === 'messages' && <MessagesView />}
           {activeTab === 'history' && <WasteHistoryView messName={profile?.name} />}

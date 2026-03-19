@@ -17,6 +17,10 @@ const CalendarView = ({ messName }) => {
   const [calendarData, setCalendarData] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); 
   
+  // State for caterer selection
+  const [caterersList, setCaterersList] = useState([]);
+  const [selectedCatererId, setSelectedCatererId] = useState('');
+  
   // State for our bottom-right error toast
   const [toastError, setToastError] = useState(null);
   
@@ -32,35 +36,67 @@ const CalendarView = ({ messName }) => {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfWeek = new Date(year, month, 1).getDay(); 
+  
+  // Calculate padding for Monday-start calendar
+  // 0 is Sunday, 1 is Monday -> map to: Monday=0, Tuesday=1 ... Sunday=6
+  const startDay = new Date(year, month, 1).getDay();
+  const firstDayOfWeek = (startDay + 6) % 7; 
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
   
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // Helper function to trigger the toast 
-  // (CSS handles the 3-second fade out, this just cleans up the DOM)
   const showErrorToast = (message) => {
     setToastError(message);
     setTimeout(() => setToastError(null), 3500); 
   };
 
+  // 1. Fetch Caterers and set initial selected caterer based on student profile
   useEffect(() => {
-    const fetchCalendarData = async () => {
+    const fetchInitialData = async () => {
       try {
+        // Fetch all available caterers
+        const { data: caterersData, error: caterersError } = await supabase
+          .from('caterers')
+          .select('caterer_id, name')
+          .order('name');
+          
+        if (caterersError) throw caterersError;
+        if (caterersData) setCaterersList(caterersData);
+
+        // Fetch current user's default caterer
         const { data: { session }, error: authError } = await supabase.auth.getSession();
-        if (authError || !session) return; 
-        
+        if (authError || !session) return;
+
         const { data: studentData, error: studentError } = await supabase
           .from('students')
           .select('caterer_id')
           .eq('id', session.user.id)
           .single();
 
-        if (studentError || !studentData?.caterer_id) return;
+        if (studentError) throw studentError;
 
-        const catererId = studentData.caterer_id;
+        if (studentData?.caterer_id) {
+          setSelectedCatererId(studentData.caterer_id);
+        } else if (caterersData && caterersData.length > 0) {
+          // Fallback to first caterer if student has no assigned caterer
+          setSelectedCatererId(caterersData[0].caterer_id);
+        }
+      } catch (err) {
+        console.error("Error fetching initial caterer data:", err.message);
+      }
+    };
+
+    fetchInitialData();
+  }, []);
+
+  // 2. Fetch Calendar Feedback Data when date, meal, or caterer changes
+  useEffect(() => {
+    const fetchCalendarData = async () => {
+      if (!selectedCatererId) return; // Don't fetch until we have a caterer selected
+
+      try {
         const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
         const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
 
@@ -70,7 +106,7 @@ const CalendarView = ({ messName }) => {
           .gte('date', startOfMonth)
           .lte('date', endOfMonth)
           .eq('meal_type', mealType.toLowerCase())
-          .eq('caterer_id', catererId); 
+          .eq('caterer_id', selectedCatererId); 
 
         if (error) throw error;
 
@@ -98,7 +134,7 @@ const CalendarView = ({ messName }) => {
     };
 
     fetchCalendarData();
-  }, [month, year, mealType]); 
+  }, [month, year, mealType, selectedCatererId]); // Re-run if caterer changes
 
   const getDataForDay = (dayNum) => {
     return calendarData.find(d => d.day === dayNum);
@@ -120,16 +156,12 @@ const CalendarView = ({ messName }) => {
     setToastError(null); 
     
     try {
-      // ==========================================
-      // TIME CONSTRAINT VALIDATION
-      // ==========================================
       if (skipData.day === 'Today') {
         const now = new Date();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
         const cutoff = SKIP_CUTOFF_TIMES[skipData.meal];
 
-        // If current time is past the cutoff hour, OR same hour but past the minute
         if (
           currentHour > cutoff.hour || 
           (currentHour === cutoff.hour && currentMinute >= cutoff.minute)
@@ -142,9 +174,6 @@ const CalendarView = ({ messName }) => {
         }
       }
 
-      // ==========================================
-      // DATABASE INSERT
-      // ==========================================
       const { data: { session }, error: authError } = await supabase.auth.getSession();
       if (authError || !session) throw new Error("Please log in to skip meals.");
 
@@ -183,7 +212,6 @@ const CalendarView = ({ messName }) => {
   return (
     <div className="calendar-layout" style={{ position: 'relative' }}>
       
-      {/* ERROR TOAST NOTIFICATION (Using Student.css classes) */}
       {toastError && (
         <div 
           className="feedback-toast error" 
@@ -197,7 +225,6 @@ const CalendarView = ({ messName }) => {
         </div>
       )}
 
-      {/* MODAL OVERLAY */}
       {selectedDay && (
         <div 
           onClick={() => setSelectedDay(null)}
@@ -244,17 +271,35 @@ const CalendarView = ({ messName }) => {
       )}
 
       <div className="calendar-section">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
           <div className="nav-header">
             <button onClick={prevMonth} className="nav-arrow-btn"><ChevronLeft size={20} /></button>
             <span className="month-label">{monthNames[month]} {year}</span>
             <button onClick={nextMonth} className="nav-arrow-btn"><ChevronRight size={20} /></button>
           </div>
-          <select value={mealType} onChange={(e) => setMealType(e.target.value)} className="header-select">
-            <option value="Breakfast">Breakfast</option>
-            <option value="Lunch">Lunch</option>
-            <option value="Dinner">Dinner</option>
-          </select>
+          
+          {/* Controls Container */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {/* New Caterer Dropdown */}
+            <select 
+              value={selectedCatererId} 
+              onChange={(e) => setSelectedCatererId(e.target.value)} 
+              className="header-select"
+            >
+              {caterersList.length === 0 && <option value="">Loading...</option>}
+              {caterersList.map(caterer => (
+                <option key={caterer.caterer_id} value={caterer.caterer_id}>
+                  {caterer.name}
+                </option>
+              ))}
+            </select>
+
+            <select value={mealType} onChange={(e) => setMealType(e.target.value)} className="header-select">
+              <option value="Breakfast">Breakfast</option>
+              <option value="Lunch">Lunch</option>
+              <option value="Dinner">Dinner</option>
+            </select>
+          </div>
         </div>
 
         <div className="legend">
@@ -264,7 +309,7 @@ const CalendarView = ({ messName }) => {
         </div>
 
         <div className="calendar-grid">
-          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+          {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => (
             <div key={d} className="grid-header">{d}</div>
           ))}
           

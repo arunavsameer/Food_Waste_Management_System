@@ -19,7 +19,11 @@ const TrendsView = () => {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfWeek = new Date(year, month, 1).getDay(); 
+  
+  // Calculate padding for Monday-start calendar
+  // 0 is Sunday, 1 is Monday -> map to: Monday=0, Tuesday=1 ... Sunday=6
+  const startDay = new Date(year, month, 1).getDay();
+  const firstDayOfWeek = (startDay + 6) % 7; 
 
   const prevMonth = () => setCurrentDate(new Date(year, month - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
@@ -149,7 +153,8 @@ const TrendsView = () => {
         </div>
         
         <div className="calendar-grid">
-          {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map(d => (
+          {/* Changed header array to start on Monday */}
+          {['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'].map(d => (
             <div key={d} className="grid-header">{d}</div>
           ))}
           

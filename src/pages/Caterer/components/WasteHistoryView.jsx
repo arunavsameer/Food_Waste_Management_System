@@ -6,6 +6,14 @@ import {
   Tooltip, ResponsiveContainer, Legend 
 } from 'recharts';
 
+// Helper to avoid the UTC timezone offset bug caused by toISOString()
+const toLocalISODate = (d) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 const WasteHistoryView = ({ messName }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [dbLogs, setDbLogs] = useState([]);
@@ -16,7 +24,12 @@ const WasteHistoryView = ({ messName }) => {
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const firstDayOfWeek = new Date(year, month, 1).getDay();
+  
+  // Calculate padding for Monday-start calendar
+  // 0 is Sunday, 1 is Monday -> map to: Monday=0, Tuesday=1 ... Sunday=6
+  const startDay = new Date(year, month, 1).getDay();
+  const firstDayOfWeek = (startDay + 6) % 7; 
+  
   const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 
   const prevMonth = () => { setLoading(true); setCurrentDate(new Date(year, month - 1, 1)); };
@@ -28,17 +41,19 @@ const WasteHistoryView = ({ messName }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { setLoading(false); return; }
 
-      const endMonth = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      const endMonth = new Date(year, month + 1, 0);
+      const endMonthStr = toLocalISODate(endMonth);
+      
       const fourteenDaysAgo = new Date();
       fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-      const startRange = fourteenDaysAgo.toISOString().split('T')[0];
+      const startRangeStr = toLocalISODate(fourteenDaysAgo);
 
       const { data, error } = await supabase
         .from('waste_reports')
         .select('*')
         .eq('caterer_id', user.id)
-        .gte('report_date', startRange)
-        .lte('report_date', endMonth)
+        .gte('report_date', startRangeStr)
+        .lte('report_date', endMonthStr)
         .order('report_date', { ascending: true });
 
       if (!error) setDbLogs(data || []);
@@ -48,25 +63,29 @@ const WasteHistoryView = ({ messName }) => {
   }, [year, month]);
 
   const weeklyComparisonData = useMemo(() => {
-    const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    // Array shifted to start on Monday
+    const days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
     const today = new Date();
-    const todayStr = today.toISOString().split('T')[0];
+    const todayStr = toLocalISODate(today);
 
-    const currentSun = new Date(today);
-    currentSun.setDate(today.getDate() - today.getDay());
-    currentSun.setHours(0, 0, 0, 0);
+    // Get the most recent Monday
+    const currentMon = new Date(today);
+    const dayOfWeek = currentMon.getDay();
+    const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    currentMon.setDate(currentMon.getDate() - diffToMonday);
+    currentMon.setHours(0, 0, 0, 0);
 
-    const prevSun = new Date(currentSun);
-    prevSun.setDate(currentSun.getDate() - 7);
+    const prevMon = new Date(currentMon);
+    prevMon.setDate(currentMon.getDate() - 7);
 
     return days.map((dayName, index) => {
-      const curDate = new Date(currentSun);
-      curDate.setDate(currentSun.getDate() + index);
-      const curDateStr = curDate.toISOString().split('T')[0];
+      const curDate = new Date(currentMon);
+      curDate.setDate(currentMon.getDate() + index);
+      const curDateStr = toLocalISODate(curDate);
 
-      const preDate = new Date(prevSun);
-      preDate.setDate(prevSun.getDate() + index);
-      const preDateStr = preDate.toISOString().split('T')[0];
+      const preDate = new Date(prevMon);
+      preDate.setDate(prevMon.getDate() + index);
+      const preDateStr = toLocalISODate(preDate);
 
       const getWaste = (dateStr) => {
         const val = dbLogs
@@ -127,7 +146,7 @@ const WasteHistoryView = ({ messName }) => {
         </div>
 
         <div className={`calendar-grid ${loading ? 'grid-loading' : ''}`}>
-          {['SUN','MON','TUE','WED','THU','FRI','SAT'].map(d => (
+          {['MON','TUE','WED','THU','FRI','SAT','SUN'].map(d => (
             <div key={d} className="grid-header" style={{ fontSize: '0.75rem' }}>{d}</div>
           ))}
           {Array.from({ length: firstDayOfWeek }).map((_, i) => (
@@ -160,7 +179,7 @@ const WasteHistoryView = ({ messName }) => {
 
       <div className="sidebar-widgets">
 
-      {/* ✅ MESS STATS CARD — vertical layout, medium height */}
+      {/* MESS STATS CARD */}
       <div style={{
         background: 'linear-gradient(135deg, #e67e22 0%, #f39c12 100%)',
         borderRadius: '16px',
@@ -169,10 +188,11 @@ const WasteHistoryView = ({ messName }) => {
         height: '180px',
         display: 'flex',
         flexDirection: 'column',
-        alignItems: 'center',       /* ← center horizontally */
-        justifyContent: 'center',   /* ← center vertically */
-        textAlign: 'center',        /* ← center text */
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
         gap: '4px',
+        boxShadow: 'var(--shadow)'
       }}>
         <span style={{ fontSize: '1rem', fontWeight: 700, color: 'white' }}>Mess Stats</span>
         <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.85)' }}>Monthly Average</span>
@@ -184,75 +204,96 @@ const WasteHistoryView = ({ messName }) => {
         </span>
       </div>
 
-        {/* ✅ WEEKLY ANALYSIS CARD */}
+        {/* WEEKLY ANALYSIS CARD */}
         <div style={{
           background: 'var(--bg-card)',
           border: '1px solid var(--border-color)',
-          padding: '15px',
-          borderRadius: '16px'
+          padding: '20px',
+          borderRadius: '16px',
+          boxShadow: 'var(--shadow)'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '0.85rem', fontWeight: 800 }}>Weekly Analysis</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
+            <h4 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem', fontWeight: 800 }}>Weekly Analysis</h4>
 
-            {/* ✅ Compact custom-styled select */}
-            <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-              <select
-                value={chartMealType}
-                onChange={(e) => setChartMealType(e.target.value)}
-                style={{
-                  appearance: 'none',
-                  WebkitAppearance: 'none',
-                  padding: '3px 24px 3px 8px',
-                  borderRadius: '8px',
-                  fontSize: '0.72rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  outline: 'none',
-                  border: '1px solid var(--border-color)',
-                  background: 'var(--bg-input)',
-                  color: 'var(--text-main)',
-                  colorScheme: 'dark light',
-                  lineHeight: '1.4',
-                }}
-              >
-                <option value="all">All Meals</option>
-                <option value="breakfast">Breakfast</option>
-                <option value="lunch">Lunch</option>
-                <option value="dinner">Dinner</option>
-              </select>
-              {/* custom chevron */}
-              <svg
-                style={{ position: 'absolute', right: '6px', pointerEvents: 'none', opacity: 0.6 }}
-                width="10" height="10" viewBox="0 0 10 10" fill="none"
-              >
-                <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
+            <select
+              value={chartMealType}
+              onChange={(e) => setChartMealType(e.target.value)}
+              className="caterer-header-select"
+              style={{
+                width: '130px',
+                height: '36px',
+                fontSize: '0.85rem',
+                paddingLeft: '12px',
+                margin: 0
+              }}
+            >
+              <option value="all">All Meals</option>
+              <option value="breakfast">Breakfast</option>
+              <option value="lunch">Lunch</option>
+              <option value="dinner">Dinner</option>
+            </select>
           </div>
 
-          <div style={{ width: '100%', height: 240 }}>
+          <div style={{ width: '100%', height: 340 }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={weeklyComparisonData} margin={{ left: -25, right: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border-color)" opacity={0.4} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false}
-                  tick={{ fill: 'var(--text-muted)', fontSize: 9, fontWeight: 600 }} dy={8} />
-                <YAxis axisLine={false} tickLine={false}
-                  tick={{ fill: 'var(--text-muted)', fontSize: 9 }} width={45} allowDecimals={false} />
-                <Tooltip contentStyle={{
-                  backgroundColor: 'var(--bg-card)',
-                  borderColor: 'var(--border-color)',
-                  borderRadius: '8px',
-                  fontSize: '11px',
-                  color: 'var(--text-main)'
-                }} labelStyle={{ color: 'var(--text-main)' }} itemStyle={{ color: 'var(--text-main)' }} />
-                <Legend verticalAlign="bottom" align="center" iconType="circle"
-                  wrapperStyle={{ fontSize: '10px', paddingTop: '10px', fontWeight: 600, color: 'var(--text-main)' }} />
-                <Line name="Current" type="monotone" dataKey="current" stroke="#e67e22"
-                  strokeWidth={3} connectNulls={false}
-                  dot={{ r: 4, fill: '#e67e22', strokeWidth: 2, stroke: 'var(--bg-card)' }}
-                  activeDot={{ r: 5, strokeWidth: 0 }} />
-                <Line name="Previous" type="monotone" dataKey="previous"
-                  stroke="var(--text-muted)" strokeDasharray="4 4" strokeWidth={2} opacity={0.5} dot={{ r: 2.5 }} />
+              <LineChart data={weeklyComparisonData} margin={{ left: 0, right: 10, top: 10, bottom: 10 }}>
+                {/* FIXED GRID: Using --text-muted with 0.25 opacity ensures visibility across themes */}
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--text-muted)" opacity={0.25} />
+                <XAxis 
+                  dataKey="name" 
+                  axisLine={false} 
+                  tickLine={false}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 700 }} 
+                  dy={15} 
+                />
+                <YAxis 
+                  axisLine={false} 
+                  tickLine={false}
+                  tick={{ fill: 'var(--text-muted)', fontSize: 11, fontWeight: 600 }} 
+                  width={45}          
+                  tickMargin={8}      
+                  allowDecimals={false} 
+                  domain={[0, 'auto']} 
+                />
+                <Tooltip 
+                  contentStyle={{
+                    backgroundColor: 'var(--bg-card)',
+                    borderColor: 'var(--border-color)',
+                    borderRadius: '12px',
+                    fontSize: '13px',
+                    padding: '12px 16px',
+                    color: 'var(--text-main)',
+                    boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
+                  }} 
+                  labelStyle={{ color: 'var(--text-main)', fontWeight: 800, marginBottom: '8px' }} 
+                  itemStyle={{ fontWeight: 600, padding: '3px 0' }} 
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  align="center" 
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '12px', paddingTop: '20px', fontWeight: 600, color: 'var(--text-main)' }} 
+                />
+                <Line 
+                  name="Current Week" 
+                  type="monotone" 
+                  dataKey="current" 
+                  stroke="#e67e22"
+                  strokeWidth={3} 
+                  connectNulls={false}
+                  dot={{ r: 5, fill: '#e67e22', strokeWidth: 2, stroke: 'var(--bg-card)' }}
+                  activeDot={{ r: 7, strokeWidth: 0 }} 
+                />
+                <Line 
+                  name="Previous Week" 
+                  type="monotone" 
+                  dataKey="previous"
+                  stroke="var(--text-muted)" 
+                  strokeDasharray="5 5" 
+                  strokeWidth={2} 
+                  opacity={0.5} 
+                  dot={{ r: 4 }} 
+                />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -260,17 +301,27 @@ const WasteHistoryView = ({ messName }) => {
       </div>
 
       {selectedDayDetail && (
-        <div className="emoji-shower-overlay"
-          style={{ background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{
-            background: 'var(--bg-card)', padding: '25px', borderRadius: '16px',
-            minWidth: '350px', position: 'relative', border: '1px solid var(--border-color)'
-          }}>
+        <div 
+          onClick={() => setSelectedDayDetail(null)}
+          style={{ 
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'var(--bg-card)', padding: '25px', borderRadius: '16px',
+              minWidth: '350px', position: 'relative', border: '1px solid var(--border-color)',
+              boxShadow: 'var(--shadow)'
+            }}
+          >
             <button onClick={() => setSelectedDayDetail(null)}
               style={{ position: 'absolute', top: '15px', right: '15px', border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer' }}>
               <X size={20} />
             </button>
-            <h3 style={{ marginBottom: '5px', fontSize: '1.1rem', color: 'var(--text-main)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '5px', fontSize: '1.1rem', color: 'var(--text-main)' }}>
               Day {selectedDayDetail.day} Breakdown
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '15px' }}>

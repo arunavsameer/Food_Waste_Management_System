@@ -101,7 +101,7 @@ const CatererDashboard = () => {
         </nav>
 
         <div className="sidebar-footer">
-          {isSidebarOpen && (
+          {/* {isSidebarOpen && (
             <div className="impact-card">
               <Leaf color="#28a745" size={20} />
               <div className="impact-text">
@@ -109,7 +109,7 @@ const CatererDashboard = () => {
                 <p>Waste reduced by 12%</p>
               </div>
             </div>
-          )}
+          )} */}
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
             {isSidebarOpen && <span>Logout</span>}

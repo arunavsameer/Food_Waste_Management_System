@@ -10,9 +10,7 @@ import Register from './pages/Login/Register';
 import StudentDashboard from './pages/Student/StudentDashboard';
 import UpdatePassword from './pages/Login/UpdatePassword';
 import CatererDashboard from "./pages/Caterer/CatererDashboard";
-
-// Placeholder
-const AdminDashboard = () => <h2>Admin Dashboard (Analytics)</h2>;
+import AdminDashboard from "./pages/Admin/AdminDashboard";
 
 function App() {
   return (

@@ -506,12 +506,12 @@ const OverviewView = () => {
             <h3 style={{ margin:0 }}>Mess-wise Waste Summary</h3>
             <div style={{ display:'flex', gap:'14px', marginTop:'5px', flexWrap:'wrap' }}>
               <span style={{ fontSize:'0.74rem', color:'var(--text-muted)' }}>
-                📅 {dateRange.label}
+                {dateRange.label}
                 {filterMess !== 'all' && ` · ${filterMess}`}
                 {filterMeal !== 'all' && ` · ${filterMeal}`}
               </span>
-              {worstMess && <span style={{ fontSize:'0.74rem', color:'var(--danger)' }}>🔴 Most wasteful: <strong>{worstMess.name}</strong> ({worstMess.total.toFixed(1)} kg)</span>}
-              {bestMess  && <span style={{ fontSize:'0.74rem', color:'var(--primary-green)' }}>🌿 Best: <strong>{bestMess.name}</strong> ({bestMess.total.toFixed(1)} kg)</span>}
+              {worstMess && <span style={{ fontSize:'0.74rem', color:'var(--danger)' }}>Most wasteful: <strong>{worstMess.name}</strong> ({worstMess.total.toFixed(1)} kg)</span>}
+              {bestMess  && <span style={{ fontSize:'0.74rem', color:'var(--primary-green)' }}>Best: <strong>{bestMess.name}</strong> ({bestMess.total.toFixed(1)} kg)</span>}
             </div>
           </div>
           <div style={{ fontSize:'0.78rem', color:'var(--text-muted)' }}>{totals.count} report{totals.count!==1?'s':''}</div>
@@ -550,7 +550,7 @@ const OverviewView = () => {
                         <td>
                           <span style={{ fontWeight:700 }}>{row.name}</span>
                           {isWorst && <span style={{ marginLeft:'7px', fontSize:'0.67rem', background:'rgba(231,76,60,0.12)', color:'var(--danger)', padding:'2px 7px', borderRadius:'20px', fontWeight:700 }}>Most Waste</span>}
-                          {isBest  && <span style={{ marginLeft:'7px', fontSize:'0.67rem', background:'rgba(46,204,113,0.12)', color:'var(--primary-green)', padding:'2px 7px', borderRadius:'20px', fontWeight:700 }}>Best 🌿</span>}
+                          {isBest  && <span style={{ marginLeft:'7px', fontSize:'0.67rem', background:'rgba(46,204,113,0.12)', color:'var(--primary-green)', padding:'2px 7px', borderRadius:'20px', fontWeight:700 }}>Best</span>}
                         </td>
                         <td className="muted">{row.count}</td>
                         <td><span style={{ fontWeight:700, color:'#e74c3c' }}>{row.plate_waste.toFixed(1)}</span></td>

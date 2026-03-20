@@ -564,9 +564,9 @@ const MessagesView = () => {
             }}>
               {isBroadcastChannel ? (
                 <><Radio size={13} color="var(--primary-blue)" style={{ flexShrink: 0 }} />
-                Messages sent here go to <strong style={{ color: 'var(--text-main)' }}>all caterers</strong>. Purple bubbles = broadcast.</>
+                Messages sent here go to <strong style={{ color: 'var(--text-main)' }}>all caterers</strong></>
               ) : (
-                <>💬 Direct messages with {selected.name} · Purple = admin broadcast (visible to all caterers)</>
+                <>Direct messages with {selected.name}</>
               )}
             </div>
 

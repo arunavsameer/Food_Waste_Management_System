@@ -136,7 +136,7 @@ const MessagesView = () => {
       } else {
         /*
           DIRECT CHANNEL with a specific admin.
-          4 separate queries (avoid compound OR + IS NULL PostgREST bug):
+          4 separate queries:
             A. this admin → me      (direct)
             B. me → this admin      (direct)
             C. this admin → null    (admin broadcast to all caterers)

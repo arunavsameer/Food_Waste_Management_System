@@ -586,12 +586,10 @@ const MessagesView = () => {
                   <Radio size={13} color="var(--primary-blue)" style={{ flexShrink: 0 }} />
                   Messages sent here go to{' '}
                   <strong style={{ color: 'var(--text-main)' }}>all admins</strong>.
-                  Purple bubbles = your broadcast.
                 </>
               ) : (
                 <>
-                  💬 Direct messages with {selected.name} ·
-                  🟢 Green tint = admin broadcast (sent to all caterers)
+                  Direct messages with {selected.name} ·
                 </>
               )}
             </div>

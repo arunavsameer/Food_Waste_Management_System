@@ -100,7 +100,7 @@ const LogWasteView = ({ profile }) => {
             <Trash2 size={24} style={{ color: '#e67e22' }} />
             <div>
               <h3>Log Daily Waste</h3>
-              <p>Reporting for <strong>{profile?.mess_name || 'EcoPlate Mess'}</strong></p>
+              <p>Reporting for <strong>{profile?.name + " Mess" || ' Mess'}</strong></p>
             </div>
           </div>
 

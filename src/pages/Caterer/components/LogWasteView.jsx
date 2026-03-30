@@ -10,9 +10,9 @@ const LogWasteView = ({ profile }) => {
   const [formData, setFormData] = useState({
     report_date: new Date().toISOString().split('T')[0],
     meal_type: 'lunch', 
-    kitchen_uncooked: 0,
-    kitchen_cooked: 0,
-    plate_waste: 0,
+    kitchen_uncooked: "",
+    kitchen_cooked: "",
+    plate_waste: "",
   });
 
   const showToast = (message, type = 'success') => {
@@ -82,7 +82,7 @@ const LogWasteView = ({ profile }) => {
       if (error) throw error;
 
       showToast("Report submitted successfully!");
-      setFormData(prev => ({ ...prev, kitchen_uncooked: 0, kitchen_cooked: 0, plate_waste: 0 }));
+      setFormData(prev => ({ ...prev, kitchen_uncooked: "", kitchen_cooked: "", plate_waste: "" }));
       
     } catch (err) {
       showToast(err.message || "Failed to log waste", "error");
@@ -136,26 +136,46 @@ const LogWasteView = ({ profile }) => {
               <h4>Uncooked (Kg)</h4>
               <input
                 type="number" min="0" step="0.01"
+                placeholder="-"
+                onFocus={(e) => e.target.placeholder = ""}
+                onBlur={(e) => e.target.placeholder = "-"}
                 value={formData.kitchen_uncooked}
-                onChange={(e) => setFormData({ ...formData, kitchen_uncooked: parseFloat(e.target.value) || 0 })}
+                onChange={(e) => setFormData(prev => ({ 
+                  ...prev, 
+                  kitchen_uncooked: e.target.value === "" ? "" : parseFloat(e.target.value) 
+                }))}
                 required
-              />
+             />
             </div>
+
             <div className="waste-box orange-tint">
               <h4>Cooked (Kg)</h4>
               <input
                 type="number" min="0" step="0.01"
+                placeholder="-"
+                onFocus={(e) => e.target.placeholder = ""}
+                onBlur={(e) => e.target.placeholder = "-"}
                 value={formData.kitchen_cooked}
-                onChange={(e) => setFormData({ ...formData, kitchen_cooked: parseFloat(e.target.value) || 0 })}
+                onChange={(e) => setFormData(prev => ({ 
+                  ...prev, 
+                  kitchen_cooked: e.target.value === "" ? "" : parseFloat(e.target.value) 
+                }))}
                 required
               />
             </div>
+
             <div className="waste-box red-tint">
               <h4>Plate Waste (Kg)</h4>
               <input
                 type="number" min="0" step="0.01"
+                placeholder="-"
+                onFocus={(e) => e.target.placeholder = ""}
+                onBlur={(e) => e.target.placeholder = "-"}
                 value={formData.plate_waste}
-                onChange={(e) => setFormData({ ...formData, plate_waste: parseFloat(e.target.value) || 0 })}
+                onChange={(e) => setFormData(prev => ({ 
+                  ...prev, 
+                  plate_waste: e.target.value === "" ? "" : parseFloat(e.target.value) 
+                }))}
                 required
               />
             </div>

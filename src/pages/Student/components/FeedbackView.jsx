@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 
+const min_bad_fb_len = 30;
+
 const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
   const [rating, setRating] = useState(7);
   const [comment, setComment] = useState('');
@@ -40,8 +42,8 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
   };
 
   const handleSubmit = async () => {
-    if (!comment.trim() && rating < 5) {
-      if (onError) onError("Please explain why the food was bad.");
+    if (((comment.trim().length) < min_bad_fb_len) && rating < 5) {
+      if (onError) onError("Please explain why the food was bad (Min 30 chars).");
       return;
     }
 

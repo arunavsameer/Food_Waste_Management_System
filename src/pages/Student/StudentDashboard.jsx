@@ -3,7 +3,8 @@ import { supabase } from '../../lib/supabase';
 import {
   Calendar, MessageSquare, TrendingUp, LogOut, Menu, X,
   Check, AlertCircle, Gamepad2, User, UtensilsCrossed,
-  Building2, Sun, Moon, Hash
+  Building2, Sun, Moon, Hash,
+  ListOrdered
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
@@ -105,8 +106,10 @@ const StudentDashboard = () => {
 
   const studentName = studentProfile?.students?.name || '';
   const initials = getInitials(studentName);
+  const messName = studentProfile?.mess_name || 'Your Mess';
 
   return (
+    // console.log(studentProfile);
     <div className="dashboard-container">
       {toast.show && (
         <div className={`feedback-toast ${toast.type}`}>
@@ -180,7 +183,7 @@ const StudentDashboard = () => {
             {/* Mess Label */}
             <div className="user-details">
               <span className="label">CURRENT MESS</span>
-              <span className="value">{studentProfile?.mess_name || 'Loading...'}</span>
+              <span className="value">{messName}</span>
             </div>
 
             {/* Avatar + Dropdown */}
@@ -209,7 +212,7 @@ const StudentDashboard = () => {
                     <li className="pd-item">
                       <span className="pd-item-icon"><Building2 size={16} /></span>
                       <span className="pd-item-label">Mess</span>
-                      <span className="pd-item-value">{studentProfile?.mess_name || '—'}</span>
+                      <span className="pd-item-value">{messName}</span>
                     </li>
                     <li className="pd-item">
                       <span className="pd-item-icon"><UtensilsCrossed size={16} /></span>
@@ -221,6 +224,12 @@ const StudentDashboard = () => {
                       <span className="pd-item-label">Roll No</span>
                       <span className="pd-item-value">{studentProfile?.students?.roll_no || '—'}</span>
                     </li>
+                    <li className="pd-item">
+                      <span className="pd-item-icon"><ListOrdered size={16} /></span>
+                      <span className="pd-item-label">Serial No</span>
+                      <span className="pd-item-value">{studentProfile?.students?.serial_no || '—'}</span>
+                      {/* console.log(studentProfile) */}
+                    </li>
                   </ul>
 
                   {/* <div className="pd-divider" /> */}
@@ -231,7 +240,7 @@ const StudentDashboard = () => {
         </header>
 
         <div className="content-area">
-          {activeTab === 'calendar' && <CalendarView messName={studentProfile?.mess_name} />}
+          {activeTab === 'calendar' && <CalendarView messName />}
 
           {activeTab === 'feedback' && (
             <FeedbackView

@@ -12,11 +12,17 @@ const CalendarView = ({ messName }) => {
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [calendarData, setCalendarData] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null); 
-  const [loading, setLoading] = useState(true); // Added loading state
+  const [loading, setLoading] = useState(true); 
   
   const [caterersList, setCaterersList] = useState([]);
   const [selectedCatererId, setSelectedCatererId] = useState('');
   const [toastError, setToastError] = useState(null);
+
+  // States for Menu Fetching
+  const [selectedMenuType, setSelectedMenuType] = useState('regular'); 
+  const [menuDay, setMenuDay] = useState('today'); // New state for Today/Tomorrow
+  const [displayedMenu, setDisplayedMenu] = useState({ breakfast: 'Loading...', lunch: 'Loading...', dinner: 'Loading...' });
+  const [loadingMenu, setLoadingMenu] = useState(true);
   
   const getRealTimeMeal = () => {
     const hour = new Date().getHours();
@@ -35,7 +41,6 @@ const CalendarView = ({ messName }) => {
 
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // Helper to format date string without UTC timezone shift
   const formatLocalDate = (date) => {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -58,7 +63,7 @@ const CalendarView = ({ messName }) => {
     setTimeout(() => setToastError(null), 3500); 
   };
 
-  // 1. Fetch Caterers and set initial selected caterer
+  // 1. Fetch Caterers and set initial selected caterer & food_type
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -75,7 +80,7 @@ const CalendarView = ({ messName }) => {
 
         const { data: studentData, error: studentError } = await supabase
           .from('students')
-          .select('caterer_id')
+          .select('caterer_id, food_type')
           .eq('id', user.id)
           .single();
 
@@ -86,6 +91,11 @@ const CalendarView = ({ messName }) => {
         } else if (caterersData && caterersData.length > 0) {
           setSelectedCatererId(caterersData[0].caterer_id);
         }
+
+        if (studentData?.food_type) {
+          setSelectedMenuType(studentData.food_type.toLowerCase());
+        }
+
       } catch (err) {
         console.error("Error fetching initial caterer data:", err.message);
       }
@@ -94,14 +104,58 @@ const CalendarView = ({ messName }) => {
     fetchInitialData();
   }, []);
 
-  // 2. Fetch Calendar Feedback Data
+  // 2. Fetch Displayed Menu (Today or Tomorrow)
+  useEffect(() => {
+    const fetchMenuData = async () => {
+      setLoadingMenu(true);
+      try {
+        const targetDate = new Date();
+        if (menuDay === 'tomorrow') {
+          targetDate.setDate(targetDate.getDate() + 1);
+        }
+        const dateStr = formatLocalDate(targetDate);
+
+        const { data, error } = await supabase
+          .from('weekly_menu')
+          .select('meal_type, menu_items')
+          .eq('date', dateStr)
+          .eq('food_type', selectedMenuType);
+
+        if (error) throw error;
+
+        const menuObj = { 
+          breakfast: `Not available for ${menuDay}`, 
+          lunch: `Not available for ${menuDay}`, 
+          dinner: `Not available for ${menuDay}` 
+        };
+        
+        if (data && data.length > 0) {
+          data.forEach(item => {
+            menuObj[item.meal_type.toLowerCase()] = item.menu_items;
+          });
+        }
+        
+        setDisplayedMenu(menuObj);
+      } catch (err) {
+        console.error("Error fetching menu:", err.message);
+        setDisplayedMenu({ breakfast: 'Error loading', lunch: 'Error loading', dinner: 'Error loading' });
+      } finally {
+        setLoadingMenu(false);
+      }
+    };
+
+    if (selectedMenuType) {
+      fetchMenuData();
+    }
+  }, [selectedMenuType, menuDay]); // Re-run when type OR day changes
+
+  // 3. Fetch Calendar Feedback Data
   useEffect(() => {
     const fetchCalendarData = async () => {
       if (!selectedCatererId) return;
       setLoading(true);
 
       try {
-        // FIXED: Using local date strings instead of .toISOString()
         const startOfMonth = formatLocalDate(new Date(year, month, 1));
         const endOfMonth = formatLocalDate(new Date(year, month + 1, 0));
 
@@ -293,6 +347,83 @@ const CalendarView = ({ messName }) => {
                  {isSkipping ? 'Processing...' : 'Skip This Meal'}
               </button>
             </>
+          )}
+        </div>
+
+        {/* Menu Display Card */}
+        <div className="menu-card" style={{ background: 'var(--bg-card)', borderRadius: '16px', border: '1px solid var(--border-color)', marginTop: '20px', padding: '20px' }}>
+          
+          {/* Header Row with Title and Dual Dropdowns */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', gap: '10px', flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0, fontSize: '1.2rem', color: 'var(--text-main)' }}>Menu</h3>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <select 
+                value={menuDay} 
+                onChange={(e) => setMenuDay(e.target.value)}
+                style={{
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-main)',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                <option value="today">Today</option>
+                <option value="tomorrow">Tomorrow</option>
+              </select>
+              <select 
+                value={selectedMenuType} 
+                onChange={(e) => setSelectedMenuType(e.target.value)}
+                style={{
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-color)',
+                  color: 'var(--text-main)',
+                  padding: '6px 10px',
+                  borderRadius: '8px',
+                  fontSize: '0.85rem',
+                  outline: 'none',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                <option value="regular">Regular</option>
+                <option value="jain">Jain</option>
+              </select>
+            </div>
+          </div>
+          
+          {loadingMenu ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '30px 0' }}>
+              <Loader2 className="spinner" size={24} color="var(--primary-green)" />
+            </div>
+          ) : (
+            <div className="menu-list">
+              <div className="menu-item" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="meal-type" style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>BREAKFAST</span>
+                  <span className="meal-time" style={{ fontSize: '0.7rem', background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>07:30 AM</span>
+                </div>
+                <div className="meal-name" style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '6px' }}>{displayedMenu.breakfast}</div>
+              </div>
+              <div className="menu-item" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="meal-type" style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>LUNCH</span>
+                  <span className="meal-time" style={{ fontSize: '0.7rem', background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>12:30 PM</span>
+                </div>
+                <div className="meal-name" style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '6px' }}>{displayedMenu.lunch}</div>
+              </div>
+              <div className="menu-item">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span className="meal-type" style={{ fontSize: '0.75rem', fontWeight: '700', color: 'var(--text-main)' }}>DINNER</span>
+                  <span className="meal-time" style={{ fontSize: '0.7rem', background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-muted)' }}>07:30 PM</span>
+                </div>
+                <div className="meal-name" style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '6px' }}>{displayedMenu.dinner}</div>
+              </div>
+            </div>
           )}
         </div>
       </div>

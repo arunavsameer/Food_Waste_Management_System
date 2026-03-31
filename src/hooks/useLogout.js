@@ -1,21 +1,20 @@
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 export const useLogout = () => {
-  const navigate = useNavigate();
-
   const handleLogout = async () => {
     try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      // 1. Tell Supabase to kill the session globally
+      await supabase.auth.signOut();
     } catch (error) {
       console.error("Error during logout:", error.message);
     } finally {
-      // Clear any lingering local storage data
-      localStorage.removeItem('debug_registration_data');
+      // 2. Nuke local/session storage to prevent ghost sessions
+      localStorage.clear();
+      sessionStorage.clear();
       
-      // Force navigation back to login
-      navigate('/', { replace: true });
+      // 3. HARD redirect. This completely clears React's memory tree,
+      // instantly stopping any frozen loading states or stuck API calls.
+      window.location.replace('/');
     }
   };
 

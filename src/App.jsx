@@ -1,3 +1,4 @@
+// App.jsx
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase'; 
@@ -14,85 +15,95 @@ import UpdatePassword from './pages/Login/UpdatePassword';
 import CatererDashboard from "./pages/Caterer/CatererDashboard";
 import AdminDashboard from "./pages/Admin/AdminDashboard";
 
-// ==========================================
-// NEW: Auth Listener Component
-// ==========================================
-// This invisible component sits inside the Router to handle 
-// the redirect after a user comes back from Google Login.
 const AuthListener = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       
-      if (event === 'SIGNED_IN' && session) {
+      // 1. Explicitly handle sign outs
+      if (event === 'SIGNED_OUT') {
+        window.location.replace('/');
+        return;
+      }
+
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
+        if (!session) return;
+
+        // 2. THE FIX: Only route them if they are on the login or register page!
+        // If they are already in the admin/caterer/student dashboard, do nothing.
+        const currentPath = window.location.pathname;
+        if (currentPath !== '/' && currentPath !== '/register') {
+          return; 
+        }
+
         try {
           const userEmail = session.user.email;
           const userId = session.user.id;
+          const googleName = session.user.user_metadata?.full_name || '';
 
-          // Reject non-iiti.ac.in emails immediately
-          if (!userEmail.endsWith('@iiti.ac.in')) {
-            await supabase.auth.signOut();
-            alert("Unauthorized: Only @iiti.ac.in email addresses are allowed.");
-            navigate('/');
-            return;
-          }
-
-          // ========================================================
-          // NEW: Intercept Google Registration from localStorage
-          // ========================================================
-          const pendingRegString = localStorage.getItem('debug_registration_data');
-          
-          if (pendingRegString) {
-            const regData = JSON.parse(pendingRegString);
-            
-            // 1. Upsert into Profiles (Using upsert to prevent errors if it somehow exists)
-            await supabase.from('profiles').upsert([
-              { id: userId, role: regData.role, mess_name: regData.role === 'admin' ? null : regData.mess_name, email: userEmail }
-            ]);
-
-            // 2. Upsert into specific role tables
-            if (regData.role === 'student') {
-              // We use the real Google Name if they didn't provide one, or fallback to the form
-              const finalName = regData.name || session.user.user_metadata?.full_name || 'Student';
-              await supabase.from('students').upsert([
-                { id: userId, roll_no: regData.roll_no, name: finalName, hostel: regData.hostel, food_type: regData.food_type, caterer_id: regData.catererId }
-              ]);
-            } else if (regData.role === 'caterer') {
-              await supabase.from('caterers').upsert([
-                { caterer_id: userId, name: regData.mess_name, manager_name: regData.manager_name, phone_no: regData.phone_no }
-              ]);
-            } else if (regData.role === 'admin') {
-              await supabase.from('admins').upsert([
-                { admin_id: userId, name: regData.admin_name, phone_no: regData.admin_phone_no }
-              ]);
-            }
-
-            // 3. Clear the localStorage so this only runs once!
-            localStorage.removeItem('debug_registration_data');
-          }
-          // ========================================================
-
-          // Now proceed with normal login routing...
-          const { data: profile, error: profileError } = await supabase
+          // Check if user already exists in official profiles
+          const { data: profile } = await supabase
             .from('profiles')
             .select('role, mess_name')
-            .eq('email', userEmail)
-            .single();
+            .eq('id', userId)
+            .maybeSingle();
 
-          if (profileError || !profile) {
-            await supabase.auth.signOut();
-            alert("Unauthorized: Your email is not registered in the college database.");
-            navigate('/');
+          if (profile) {
+            // Route them to their dashboard
+            if (profile.role === 'admin') navigate('/admin');
+            else if (profile.role === 'caterer') navigate('/caterer', { state: { messName: profile.mess_name } });
+            else navigate('/student');
             return;
           }
 
-          if (profile.role === 'admin') navigate('/admin');
-          else if (profile.role === 'caterer') navigate('/caterer', { state: { messName: profile.mess_name } });
+          // First Time Login: Check the Admin's pre-registration list
+          const { data: preReg } = await supabase
+            .from('pre_registrations')
+            .select('*')
+            .eq('email', userEmail)
+            .maybeSingle();
+
+          if (!preReg) {
+            await supabase.auth.signOut();
+            alert("Unauthorized: Your email has not been allocated to a mess by the Admin yet. Please contact support.");
+            window.location.replace('/');
+            return;
+          }
+
+          // User is Pre-Registered! Finalize their account setup.
+          await supabase.from('profiles').upsert([
+            { id: userId, email: userEmail, role: preReg.role, mess_name: preReg.role === 'admin' ? null : preReg.mess_name }
+          ]);
+
+          if (preReg.role === 'student') {
+            const rollNo = userEmail.split('@')[0].toUpperCase();
+            const finalName = googleName || rollNo; 
+
+            await supabase.from('students').upsert([
+              { id: userId, roll_no: rollNo, name: finalName, hostel: preReg.hostel, food_type: preReg.food_type, caterer_id: preReg.caterer_id }
+            ]);
+          } else if (preReg.role === 'caterer') {
+            await supabase.from('caterers').upsert([
+              { caterer_id: userId, name: preReg.mess_name, manager_name: preReg.manager_name, phone_no: preReg.phone_no }
+            ]);
+          } else if (preReg.role === 'admin') {
+            await supabase.from('admins').upsert([
+              { admin_id: userId, name: preReg.admin_name || googleName, phone_no: preReg.phone_no }
+            ]);
+          }
+
+          // Cleanup: Remove them from the waiting room
+          await supabase.from('pre_registrations').delete().eq('email', userEmail);
+
+          // Navigate to correct dashboard
+          if (preReg.role === 'admin') navigate('/admin');
+          else if (preReg.role === 'caterer') navigate('/caterer', { state: { messName: preReg.mess_name } });
           else navigate('/student');
 
         } catch (error) {
-          console.error("Routing error:", error);
+          console.error("Account finalize error:", error);
+          alert("An error occurred while setting up your account.");
         }
       }
     });
@@ -103,52 +114,21 @@ const AuthListener = () => {
   return null; 
 };
 
-// ==========================================
-// Main App Component
-// ==========================================
 function App() {
   return (
     <ThemeProvider> 
       <Router>
-        {/* Mount the Auth Listener inside the Router */}
         <AuthListener />
-        
         <ThemeToggle /> 
-        
         <Routes>
-          {/* Public Routes */}
           <Route path="/" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/register" element={<Register />} />
           <Route path="/update-password" element={<UpdatePassword />} />
           
-          {/* Protected Routes */}
-          <Route 
-            path="/student" 
-            element={
-              <ProtectedRoute allowedRoles={['student']}>
-                <StudentDashboard />
-              </ProtectedRoute>
-            } 
-          />
-          
-          <Route 
-            path="/caterer" 
-            element={
-              <ProtectedRoute allowedRoles={['caterer']}>
-                <CatererDashboard />
-              </ProtectedRoute>
-            } 
-          />
-          
-          <Route 
-            path="/admin" 
-            element={
-              <ProtectedRoute allowedRoles={['admin']}>
-                <AdminDashboard />
-              </ProtectedRoute>
-            } 
-          />
+          <Route path="/student" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+          <Route path="/caterer" element={<ProtectedRoute allowedRoles={['caterer']}><CatererDashboard /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
         </Routes>
       </Router>
     </ThemeProvider>

@@ -56,9 +56,9 @@ const handleGoogleLogin = async () => {
       provider: 'google',
       options: {
         redirectTo: window.location.origin,
-        queryParams: {
-          hd: 'iiti.ac.in' 
-        }
+        // queryParams: {
+        //   hd: 'iiti.ac.in' 
+        // } removed for caterers - they can have non iiti mail
       }
     });
     if (error) throw error;

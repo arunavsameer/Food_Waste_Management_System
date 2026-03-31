@@ -117,23 +117,23 @@ const Register = () => {
     setError('');
 
     try {
-      // 1. Run the same checks (Does roll no exist? Does caterer exist?)
+      // NEW: Quick check before sending to Google
+      if (formData.role === 'student' && !formData.email.endsWith('@iiti.ac.in')) {
+        throw new Error("Students must use an @iiti.ac.in email address.");
+      }
+
       const catererId = await runPreValidation();
 
-      // 2. Save the form data to localStorage so it survives the redirect
       localStorage.setItem('debug_registration_data', JSON.stringify({
         ...formData,
-        catererId // save the fetched ID so we don't have to fetch it again
+        catererId 
       }));
 
-      // 3. Trigger Google Login
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
           redirectTo: window.location.origin, 
-          queryParams: {
-            hd: 'iiti.ac.in' // Restrict to college domain
-          }
+          // REMOVED queryParams: { hd: 'iiti.ac.in' }
         }
       });
       if (error) throw error;

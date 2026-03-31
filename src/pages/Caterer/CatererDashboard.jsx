@@ -10,6 +10,8 @@ import MessagesView from './components/MessagesView';
 import MessFeedbackView from './components/MessFeedbackView';
 import WasteHistoryView from './components/WasteHistoryView';
 
+import { useLogout } from '../../hooks/useLogout';
+
 const CatererDashboard = () => {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
@@ -48,10 +50,7 @@ const CatererDashboard = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
-  };
+  const handleLogout = useLogout();
 
   const getInitials = (name) => {
     if (!name) return 'CT';

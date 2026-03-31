@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, use } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   Calendar, MessageSquare, TrendingUp, LogOut, Menu, X,
@@ -14,6 +14,8 @@ import CalendarView from './components/CalendarView';
 import FeedbackView from './components/FeedbackView';
 import TrendsView from './components/TrendsView';
 import GameView from './components/GameView';
+
+import { useLogout } from '../../hooks/useLogout';
 
 // Helper: first two initials from a full name
 const getInitials = (name) => {
@@ -84,10 +86,7 @@ const StudentDashboard = () => {
     fetchProfileAndStats();
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
-  };
+  const handleLogout = useLogout();
 
   const triggerToast = (type, message) => {
     setToast({ show: true, type, message });

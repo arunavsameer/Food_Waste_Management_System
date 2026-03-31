@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, use } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard, FileBarChart2, MessageSquare,
@@ -13,6 +13,8 @@ import WasteReportsView  from './components/WasteReportsView';
 import AdminFeedbackView from './components/AdminFeedbackView';
 import MessagesView      from './components/MessagesView';
 import UsersView         from './components/UsersView';
+
+import { useLogout } from '../../hooks/useLogout';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -41,10 +43,7 @@ const AdminDashboard = () => {
     fetchProfile();
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
-  };
+  const handleLogout = useLogout();
 
   const triggerToast = (type, message) => {
     setToast({ show: true, type, message });

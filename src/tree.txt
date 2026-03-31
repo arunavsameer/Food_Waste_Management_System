@@ -13,6 +13,14 @@
 ├── main.jsx
 ├── pages
 │   ├── Admin
+│   │   ├── Admin.css
+│   │   ├── AdminDashboard.jsx
+│   │   └── components
+│   │       ├── AdminFeedbackView.jsx
+│   │       ├── MessagesView.jsx
+│   │       ├── OverviewView.jsx
+│   │       ├── UsersView.jsx
+│   │       └── WasteReportsView.jsx
 │   ├── Caterer
 │   │   ├── CatererDashboard.css
 │   │   ├── CatererDashboard.jsx
@@ -39,4 +47,4 @@
 │       └── todo.txt
 └── tree.txt
 
-12 directories, 28 files
+13 directories, 35 files

@@ -19,7 +19,7 @@ const Register = () => {
     name: '',           
     roll_no: '',        
     hostel: 'APJ',      
-    food_type: 'veg',   
+    food_type: 'regular',   
     manager_name: '',   
     phone_no: '',
     admin_name: '',

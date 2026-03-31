@@ -6,11 +6,11 @@ import {
 
 const ROLES = ['student', 'caterer', 'admin'];
 const HOSTELS = ['APJ', 'CVR', 'DA', 'VSB', 'HJB', 'JCB', 'PM Ajay', 'Others'];
-const FOOD_TYPES = ['veg', 'non_veg', 'jain'];
+const FOOD_TYPES = ['regular', 'jain'];
 
 const emptyForm = {
   email: '', role: 'student', mess_name: '',
-  hostel: 'APJ', food_type: 'veg',
+  hostel: 'APJ', food_type: 'regular',
   manager_name: '', phone_no: '',
   admin_name: '', admin_phone_no: '',
 };
@@ -92,7 +92,7 @@ const UsersView = ({ triggerToast }) => {
       role: p.role || 'student',
       mess_name: p.mess_name || '',
       hostel: p.students?.hostel || 'APJ',
-      food_type: p.students?.food_type || 'veg',
+      food_type: p.students?.food_type || 'regular',
       manager_name: p.caterers?.manager_name || '',
       phone_no: p.caterers?.phone_no || '',
       admin_name: p.admins?.name || '',

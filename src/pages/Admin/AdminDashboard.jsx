@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard, FileBarChart2, MessageSquare,
   Users, Send, LogOut, Menu, X,
-  Check, AlertCircle, ShieldCheck, User, Phone
+  Check, AlertCircle, ShieldCheck, User, Phone, Utensils
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './Admin.css';
@@ -13,6 +13,7 @@ import WasteReportsView  from './components/WasteReportsView';
 import AdminFeedbackView from './components/AdminFeedbackView';
 import MessagesView      from './components/MessagesView';
 import UsersView         from './components/UsersView';
+import MenuView          from './components/MenuView';
 
 import { useLogout } from '../../hooks/useLogout';
 
@@ -23,6 +24,8 @@ const getInitials = (name) => {
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
 };
+
+
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -80,6 +83,7 @@ const AdminDashboard = () => {
     feedback:  'Student Feedback',
     messages:  'Messages to Caterers',
     users:     'User Management',
+    menu:      'Menu Management', // ADD THIS LINE
   };
 
   const NAV_ITEMS = [
@@ -87,6 +91,7 @@ const AdminDashboard = () => {
     { id: 'waste',    icon: <FileBarChart2   size={20} />, label: 'Waste Reports'  },
     { id: 'feedback', icon: <MessageSquare  size={20} />, label: 'Feedback'   },
     { id: 'messages', icon: <Send           size={20} />, label: 'Messages'   },
+    { id: 'menu',     icon: <Utensils       size={20} />, label: 'Menu'       }, // ADD THIS LINE
     { id: 'users',    icon: <Users          size={20} />, label: 'Users'      },
   ];
 
@@ -221,6 +226,7 @@ const AdminDashboard = () => {
           {activeTab === 'waste'     && <WasteReportsView />}
           {activeTab === 'feedback'  && <AdminFeedbackView />}
           {activeTab === 'messages'  && <MessagesView />}
+          {activeTab === 'menu'      && <MenuView triggerToast={triggerToast} />}
           {activeTab === 'users'     && <UsersView triggerToast={triggerToast} />}
         </div>
       </main>

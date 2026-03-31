@@ -1,26 +1,26 @@
 import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link, useNavigate } from 'react-router-dom';
-import { 
-  User, Lock, Loader2, Utensils, ShieldAlert, 
-  Hash, Phone, Building, UserCircle 
+import {
+  User, Lock, Loader2, Utensils, ShieldAlert,
+  Hash, Phone, Building, UserCircle
 } from 'lucide-react';
 import './Login.css';
 
 const Register = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false); // NEW: Google loading state
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    role: 'student', 
-    mess_name: '',      
-    name: '',           
-    roll_no: '',        
-    hostel: 'APJ',      
-    food_type: 'regular',   
-    manager_name: '',   
+    role: 'student',
+    mess_name: '',
+    name: '',
+    roll_no: '',
+    hostel: 'APJ',
+    food_type: 'regular',
+    manager_name: '',
     phone_no: '',
     admin_name: '',
     admin_phone_no: ''
@@ -41,13 +41,10 @@ const Register = () => {
       if (error) throw error;
       return data?.caterer_id || null;
     } catch (err) {
-      return null; 
+      return null;
     }
   };
 
-  // --------------------------------------------------
-  // Pre-Validation Logic (Used by both Email & Google)
-  // --------------------------------------------------
   const runPreValidation = async () => {
     let catererId = null;
     if (formData.role === 'student') {
@@ -66,9 +63,6 @@ const Register = () => {
     return catererId;
   };
 
-  // --------------------------------------------------
-  // Standard Email/Password Registration
-  // --------------------------------------------------
   const handleRegister = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -76,7 +70,7 @@ const Register = () => {
 
     try {
       const catererId = await runPreValidation();
-      
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -86,13 +80,11 @@ const Register = () => {
 
       if (authData.user) {
         const userId = authData.user.id;
-        // Insert Profiles
         const { error: profileError } = await supabase.from('profiles').insert([
           { id: userId, role: formData.role, mess_name: formData.role === 'admin' ? null : formData.mess_name, email: formData.email }
         ]);
         if (profileError) throw profileError;
 
-        // Insert Role Specifics
         if (formData.role === 'student') {
           await supabase.from('students').insert([{ id: userId, roll_no: formData.roll_no, name: formData.name, hostel: formData.hostel, food_type: formData.food_type, caterer_id: catererId }]);
         } else if (formData.role === 'caterer') {
@@ -109,15 +101,11 @@ const Register = () => {
     }
   };
 
-  // --------------------------------------------------
-  // NEW: Google OAuth Registration
-  // --------------------------------------------------
   const handleGoogleRegister = async () => {
     setGoogleLoading(true);
     setError('');
 
     try {
-      // NEW: Quick check before sending to Google
       if (formData.role === 'student' && !formData.email.endsWith('@iiti.ac.in')) {
         throw new Error("Students must use an @iiti.ac.in email address.");
       }
@@ -126,14 +114,13 @@ const Register = () => {
 
       localStorage.setItem('debug_registration_data', JSON.stringify({
         ...formData,
-        catererId 
+        catererId
       }));
 
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin, 
-          // REMOVED queryParams: { hd: 'iiti.ac.in' }
+          redirectTo: window.location.origin,
         }
       });
       if (error) throw error;
@@ -145,20 +132,24 @@ const Register = () => {
   };
 
   return (
-    <div className="login-container" style={{ borderTop: '5px solid orange' }}>
+    <div className="login-container" style={{ borderTop: '4px solid #f0a500' }}>
+      {/* Liquid glass orbs */}
+      <div className="glass-orb glass-orb-1" />
+      <div className="glass-orb glass-orb-2" />
+      <div className="glass-orb glass-orb-3" />
+
       <div className="login-card">
         <div className="brand-header">
-           <ShieldAlert className="logo-icon" size={28} color="orange" />
-           <h1>Debug Register</h1>
+          <ShieldAlert size={26} color="#f0a500" style={{ filter: 'drop-shadow(0 0 6px rgba(240,165,0,0.5))' }} />
+          <h1 style={{ color: '#f0a500' }}>Debug Register</h1>
         </div>
-        <p className="welcome-text">Create account (Dev Mode)</p>
+        <p className="welcome-text">Create account — Dev Mode</p>
 
         <form onSubmit={handleRegister} className="login-form">
-          {/* Email & Password are only required if they use the standard register button */}
           <div className="input-group">
             <label>Email Address</label>
             <div className="input-wrapper">
-              <User size={18} className="input-icon" />
+              <User size={17} className="input-icon" />
               <input type="email" name="email" placeholder="test@college.edu" value={formData.email} onChange={handleChange} />
             </div>
           </div>
@@ -166,7 +157,7 @@ const Register = () => {
           <div className="input-group">
             <label>Password</label>
             <div className="input-wrapper">
-              <Lock size={18} className="input-icon" />
+              <Lock size={17} className="input-icon" />
               <input type="password" name="password" placeholder="Min 6 chars" value={formData.password} onChange={handleChange} />
             </div>
           </div>
@@ -182,18 +173,15 @@ const Register = () => {
             </div>
           </div>
 
-          {/* ... Keep all your existing conditional fields for Student, Caterer, Admin here ... */}
-          {/* I have omitted them here for brevity, keep them exactly as you had them! */}
           {formData.role === 'student' && (
             <>
               <div className="input-group">
                 <label>Roll Number</label>
                 <div className="input-wrapper">
-                  <Hash size={18} className="input-icon" />
+                  <Hash size={17} className="input-icon" />
                   <input type="text" name="roll_no" placeholder="e.g., 2023CSB1001" value={formData.roll_no} onChange={handleChange} required />
                 </div>
               </div>
-              {/* Keep the rest of your student inputs */}
             </>
           )}
 
@@ -201,7 +189,7 @@ const Register = () => {
             <div className="input-group">
               <label>{formData.role === 'student' ? 'Mess Name to Subscribe' : 'Your Mess Name'}</label>
               <div className="input-wrapper">
-                <Utensils size={18} className="input-icon" />
+                <Utensils size={17} className="input-icon" />
                 <input type="text" name="mess_name" placeholder="Enter Mess Name" value={formData.mess_name} onChange={handleChange} required />
               </div>
             </div>
@@ -218,18 +206,17 @@ const Register = () => {
           <span>OR</span>
         </div>
 
-        {/* NEW: Google Register Button */}
-        <button 
-          type="button" 
-          onClick={handleGoogleRegister} 
-          className="google-btn" 
+        <button
+          type="button"
+          onClick={handleGoogleRegister}
+          className="google-btn"
           disabled={loading || googleLoading}
         >
           {googleLoading ? (
             <Loader2 className="spinner" size={20} />
           ) : (
             <>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
                 <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
                 <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
@@ -241,7 +228,7 @@ const Register = () => {
         </button>
 
         <div className="footer-links">
-           <Link to="/">Back to Login</Link>
+          <Link to="/">Back to Login</Link>
         </div>
       </div>
     </div>

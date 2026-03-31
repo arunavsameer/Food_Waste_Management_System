@@ -19,6 +19,7 @@
 │   │   ├── AdminDashboard.jsx
 │   │   └── components
 │   │       ├── AdminFeedbackView.jsx
+│   │       ├── MenuView.jsx
 │   │       ├── MessagesView.jsx
 │   │       ├── OverviewView.jsx
 │   │       ├── UsersView.jsx
@@ -49,4 +50,4 @@
 │       └── todo.txt
 └── tree.txt
 
-14 directories, 36 files
+14 directories, 37 files

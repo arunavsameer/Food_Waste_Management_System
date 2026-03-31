@@ -1,12 +1,14 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+
 :root {
   /* --- LIGHT THEME (Default) --- */
-  --bg-body: #f8f9fa;
+  --bg-body: #f0eef8;
   --bg-card: #ffffff;
   --bg-input: #ffffff;
   --bg-hover: #f1f2f6;
-  
-  --text-main: #2d3436;
-  --text-muted: #636e72;
+
+  --text-main: #1a1a2e;
+  --text-muted: #6b6b8a;
   --border-color: #e1e4e8;
 
   /* Status Colors (Light Mode - Pastels) */
@@ -18,43 +20,74 @@
   --primary-blue: #6c5ce7;
   --danger: #e74c3c;
   --warning: #f1c40f;
-  
+
   --shadow: 0 4px 15px rgba(0,0,0,0.05);
+
+  /* ── Liquid Glass (Light) ── */
+  --glass-bg:       rgba(255, 255, 255, 0.55);
+  --glass-border:   rgba(255, 255, 255, 0.75);
+  --glass-shadow:   0 8px 40px rgba(108, 92, 231, 0.18), 0 2px 8px rgba(0,0,0,0.08);
+  --glass-blur:     blur(28px) saturate(200%);
+  --glass-shine:    linear-gradient(135deg, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0) 60%);
+
+  --orb-1: radial-gradient(circle, rgba(180,160,255,0.7) 0%, transparent 70%);
+  --orb-2: radial-gradient(circle, rgba(100,230,180,0.65) 0%, transparent 70%);
+  --orb-3: radial-gradient(circle, rgba(255,180,220,0.6) 0%, transparent 70%);
+
+  --login-bg-start: #e8e2ff;
+  --login-bg-mid:   #fce4f5;
+  --login-bg-end:   #d8f5ee;
+
+  --input-glass-bg:    rgba(255, 255, 255, 0.5);
+  --input-glass-border: rgba(180, 170, 255, 0.4);
+  --input-glass-focus:  rgba(108, 92, 231, 0.35);
 }
 
 /* --- DARK THEME OVERRIDES (Pitch Black / OLED Mode) --- */
 [data-theme='dark'] {
-  /* 1. Backgrounds */
-  --bg-body: #000000;       /* Pure Black */
-  --bg-card: #0a0a0a;       /* Almost black, just enough to separate from body */
-  --bg-input: #161616;      /* Very dark gray inputs */
-  --bg-hover: #222222;      /* Hover state */
-  
-  /* 2. Text & Borders */
-  --text-main: #e5e5e5;     /* High contrast text */
-  --text-muted: #808080;    /* Dimmed text */
-  --border-color: #222222;  /* Very subtle borders */
+  --bg-body: #000000;
+  --bg-card: #0a0a0a;
+  --bg-input: #161616;
+  --bg-hover: #222222;
 
-  /* 3. Status Colors (Dark Mode) - Adjusted for black background */
+  --text-main: #e8e6ff;
+  --text-muted: #7a7a9a;
+  --border-color: #222233;
+
   --bg-good: rgba(46, 204, 113, 0.15);
   --bg-mid:  rgba(241, 196, 15, 0.15);
   --bg-bad:  rgba(231, 76, 60, 0.15);
 
-  /* 4. Accents */
-  --primary-green: #2ecc71;   
-  --primary-blue: #7d73e6;
+  --primary-green: #2ecc71;
+  --primary-blue: #8b7cf8;
   --danger: #ff6b6b;
   --warning: #feca57;
 
-  /* 5. Shadows (Deep & Subtle since bg is black) */
-  --shadow: 0 4px 20px rgba(255, 255, 255, 0.03); /* Subtle white glow for depth or just dark */
-  /* OR stick to dark shadow if you prefer flat look: */
-  /* --shadow: 0 4px 20px rgba(0,0,0, 1); */ 
+  --shadow: 0 4px 20px rgba(255, 255, 255, 0.03);
+
+  /* ── Liquid Glass (Dark) ── */
+  --glass-bg:       rgba(12, 10, 25, 0.55);
+  --glass-border:   rgba(139, 124, 248, 0.22);
+  --glass-shadow:   0 8px 40px rgba(108, 92, 231, 0.3), 0 0 80px rgba(46,204,113,0.05);
+  --glass-blur:     blur(28px) saturate(180%);
+  --glass-shine:    linear-gradient(135deg, rgba(139,124,248,0.18) 0%, rgba(255,255,255,0) 60%);
+
+  --orb-1: radial-gradient(circle, rgba(108, 92, 231, 0.55) 0%, transparent 70%);
+  --orb-2: radial-gradient(circle, rgba(46, 204, 113, 0.45) 0%, transparent 70%);
+  --orb-3: radial-gradient(circle, rgba(80, 60, 180, 0.4) 0%, transparent 70%);
+
+  --login-bg-start: #050510;
+  --login-bg-mid:   #0a0520;
+  --login-bg-end:   #020e0a;
+
+  --input-glass-bg:    rgba(255, 255, 255, 0.04);
+  --input-glass-border: rgba(139, 124, 248, 0.2);
+  --input-glass-focus:  rgba(139, 124, 248, 0.4);
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Outfit', system-ui, Avenir, Helvetica, Arial, sans-serif;
   background-color: var(--bg-body);
   color: var(--text-main);
   transition: background-color 0.3s ease, color 0.3s ease;
@@ -72,15 +105,14 @@ div, nav, button, input, select, textarea, aside, .card, .login-card {
    ========================================= */
 
 /* 1. Base Card Style */
-.card-base, .login-card, .feedback-card, .menu-card, .calendar-section {
+.card-base, .feedback-card, .menu-card, .calendar-section {
   background: var(--bg-card);
   box-shadow: var(--shadow);
   border-radius: 16px;
-  border: 1px solid transparent; /* Placeholder for dark mode border */
+  border: 1px solid transparent;
 }
 
-[data-theme='dark'] .card-base, 
-[data-theme='dark'] .login-card, 
+[data-theme='dark'] .card-base,
 [data-theme='dark'] .feedback-card,
 [data-theme='dark'] .menu-card,
 [data-theme='dark'] .calendar-section {
@@ -115,14 +147,12 @@ input[type="password"],
   background-color: var(--bg-input);
   border: 1px solid var(--border-color);
   border-radius: 10px;
-  font-size: 1rem; /* Consistent font size */
+  font-size: 1rem;
   color: var(--text-main);
   cursor: pointer;
   outline: none;
   transition: all 0.2s ease;
   box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-  
-  /* Default Arrow (Gray) - Overridden in specific files */
   background-repeat: no-repeat;
   background-position: right 15px center;
   background-size: 16px;
@@ -137,6 +167,6 @@ label {
   display: block;
   font-size: 0.85rem;
   font-weight: 600;
-  color: var(--text-main); 
+  color: var(--text-main);
   margin-bottom: 0.5rem;
 }

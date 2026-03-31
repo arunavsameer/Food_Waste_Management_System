@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { Link } from 'react-router-dom';
 import { Mail, Loader2, ArrowLeft, Leaf } from 'lucide-react';
-import './Login.css'; // Reusing the same CSS
+import './Login.css';
 
 const ForgotPassword = () => {
   const [loading, setLoading] = useState(false);
@@ -16,21 +16,19 @@ const ForgotPassword = () => {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        // This URL should point to a page where the user enters new password
-        // e.g., 'http://localhost:5173/update-password'
         redirectTo: window.location.origin + '/update-password',
       });
 
       if (error) throw error;
 
-      setMessage({ 
-        type: 'success', 
-        text: 'Check your email for the password reset link.' 
+      setMessage({
+        type: 'success',
+        text: 'Check your email for the password reset link.',
       });
     } catch (err) {
-      setMessage({ 
-        type: 'error', 
-        text: err.message 
+      setMessage({
+        type: 'error',
+        text: err.message,
       });
     } finally {
       setLoading(false);
@@ -39,31 +37,37 @@ const ForgotPassword = () => {
 
   return (
     <div className="login-container">
+      {/* Liquid glass orbs */}
+      <div className="glass-orb glass-orb-1" />
+      <div className="glass-orb glass-orb-2" />
+      <div className="glass-orb glass-orb-3" />
+
       <div className="login-card">
         <div className="brand-header">
-           <Leaf className="logo-icon" size={28} />
-           <h1>Recovery</h1>
+          <div className="logo-wrapper">
+            <Leaf className="logo-icon" size={26} />
+          </div>
+          <h1>Recovery</h1>
         </div>
-        <p className="welcome-text">Enter your email to reset password</p>
+        <p className="welcome-text">Enter your email to reset your password</p>
 
         <form onSubmit={handleReset} className="login-form">
           <div className="input-group">
             <label>Email Address</label>
             <div className="input-wrapper">
-              <Mail size={18} className="input-icon" />
-              <input 
-                type="email" 
-                placeholder="id@college.edu" 
+              <Mail size={17} className="input-icon" />
+              <input
+                type="email"
+                placeholder="id@college.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required 
+                required
               />
             </div>
           </div>
 
           {message.text && (
-            <div className={`error-message ${message.type === 'success' ? 'success-text' : ''}`} 
-                 style={{ color: message.type === 'success' ? 'green' : undefined }}>
+            <div className={`error-message ${message.type === 'success' ? 'success-text' : ''}`}>
               {message.text}
             </div>
           )}
@@ -73,10 +77,10 @@ const ForgotPassword = () => {
           </button>
         </form>
 
-        <div className="footer-links" style={{ justifyContent: 'center' }}>
-           <Link to="/" className="flex items-center gap-2">
-             <ArrowLeft size={14} /> Back to Login
-           </Link>
+        <div className="footer-links" style={{ justifyContent: 'center', marginTop: '24px' }}>
+          <Link to="/" className="flex items-center gap-2">
+            <ArrowLeft size={14} /> Back to Login
+          </Link>
         </div>
       </div>
     </div>

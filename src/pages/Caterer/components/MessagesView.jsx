@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Send, MessageSquareDashed, Loader2, Radio, AlertCircle } from 'lucide-react';
+import { Send, MessageSquareDashed, Loader2, Radio, AlertCircle, RefreshCw } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
    HELPERS
@@ -567,6 +567,14 @@ const MessagesView = () => {
                   BROADCAST
                 </span>
               )}
+              <button
+                className="icon-btn"
+                onClick={() => fetchMessages(selected, catererId)}
+                disabled={msgLoading}
+                title="Refresh messages"
+              >
+                <RefreshCw size={15} className={msgLoading ? 'spin' : ''} />
+              </button>
             </div>
 
             {/* Hint bar */}

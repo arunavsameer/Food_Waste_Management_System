@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { ChevronLeft, ChevronRight, Edit3, Save, X, Copy } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Edit3, Save, X, Copy, Upload } from 'lucide-react';
+import { useMenuParse } from '../../../context/MenuParseContext'; // <-- NEW IMPORT
 
 // Helper to get Monday of a given date's week
 const getMonday = (d) => {
@@ -10,7 +11,6 @@ const getMonday = (d) => {
   return new Date(date.setDate(diff));
 };
 
-// Format date to YYYY-MM-DD for SQL
 const formatDate = (date) => {
   const d = new Date(date);
   const month = '' + (d.getMonth() + 1);
@@ -19,7 +19,6 @@ const formatDate = (date) => {
   return [year, month.padStart(2, '0'), day.padStart(2, '0')].join('-');
 };
 
-// Add days to a date
 const addDays = (date, days) => {
   const result = new Date(date);
   result.setDate(result.getDate() + days);
@@ -29,17 +28,36 @@ const addDays = (date, days) => {
 const MEALS = ['breakfast', 'lunch', 'dinner'];
 
 const MenuView = ({ triggerToast }) => {
+  // Pull background parsing tools from our new Context
+  const { isParsing, parsedRawData, startParsing, clearParsedData } = useMenuParse();
+  const fileInputRef = useRef(null);
+
   const [currentMonday, setCurrentMonday] = useState(getMonday(new Date()));
-  const [foodType, setFoodType] = useState('regular'); // 'regular' or 'jain'
-  const [isEditing, setIsEditing] = useState(false);
+  const [foodType, setFoodType] = useState('regular'); 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  
-  // Data structure: { "YYYY-MM-DD_mealType": { id: 123, menu_items: "Poha, Tea..." } }
   const [menuData, setMenuData] = useState({});
-  const [draftData, setDraftData] = useState({});
 
-  // Generate the 14 days based on current Monday
+  // NEW: Initialize Draft and Edit states from LocalStorage so they survive reloads
+  const [isEditing, setIsEditing] = useState(() => {
+    return localStorage.getItem('menu_isEditing') === 'true';
+  });
+  
+  const [draftData, setDraftData] = useState(() => {
+    const saved = localStorage.getItem('menu_draftData');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // NEW: Auto-save draft changes to browser memory
+  useEffect(() => {
+    localStorage.setItem('menu_isEditing', isEditing);
+    if (isEditing) {
+      localStorage.setItem('menu_draftData', JSON.stringify(draftData));
+    } else {
+      localStorage.removeItem('menu_draftData');
+    }
+  }, [isEditing, draftData]);
+
   const days = Array.from({ length: 14 }).map((_, i) => addDays(currentMonday, i));
   const week1 = days.slice(0, 7);
   const week2 = days.slice(7, 14);
@@ -66,9 +84,12 @@ const MenuView = ({ triggerToast }) => {
       });
       
       setMenuData(mappedData);
-      setDraftData(mappedData);
+      
+      // ONLY overwrite draft if the user isn't currently in the middle of editing
+      if (!isEditing) {
+        setDraftData(mappedData);
+      }
     } catch (error) {
-      console.error('Error fetching menu:', error);
       triggerToast('error', 'Failed to load menu data.');
     } finally {
       setIsLoading(false);
@@ -77,18 +98,22 @@ const MenuView = ({ triggerToast }) => {
 
   useEffect(() => {
     fetchMenuData();
-    setIsEditing(false); // Reset editing mode when changing dates or food type
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonday, foodType]);
+
+  // NEW: Listen for background parsing completion
+  useEffect(() => {
+    if (parsedRawData && days.length > 0) {
+      applyParsedDataToDraft(parsedRawData);
+      clearParsedData(); // Clear it from memory so we don't apply it twice
+    }
+  }, [parsedRawData, days]);
 
   const handleDraftChange = (dateStr, mealType, value) => {
     const key = `${dateStr}_${mealType}`;
     setDraftData(prev => ({
       ...prev,
-      [key]: {
-        ...prev[key],
-        menu_items: value
-      }
+      [key]: { ...prev[key], menu_items: value }
     }));
   };
 
@@ -107,60 +132,32 @@ const MenuView = ({ triggerToast }) => {
         const textValue = draftItem.menu_items?.trim() || '';
         const originalText = originalItem.menu_items?.trim() || '';
 
-        // Check if this cell already has an entry in the database (it has an ID)
         if (draftItem.id) {
-          // Only perform a DB action if the text actually changed
           if (textValue !== originalText) {
             if (textValue === '') {
-              // If the admin cleared the cell completely, delete the record
-              updateOrDeletePromises.push(
-                supabase.from('weekly_menu').delete().eq('id', draftItem.id)
-              );
+              updateOrDeletePromises.push(supabase.from('weekly_menu').delete().eq('id', draftItem.id));
             } else {
-              // If text changed, update it via ID
-              updateOrDeletePromises.push(
-                supabase.from('weekly_menu')
-                  .update({ menu_items: textValue })
-                  .eq('id', draftItem.id)
-              );
+              updateOrDeletePromises.push(supabase.from('weekly_menu').update({ menu_items: textValue }).eq('id', draftItem.id));
             }
           }
         } else {
-          // No ID means it's a brand new entry. Only insert if they typed something.
           if (textValue !== '') {
-            inserts.push({
-              date: dateStr,
-              meal_type: mealType,
-              food_type: foodType,
-              menu_items: textValue
-            });
+            inserts.push({ date: dateStr, meal_type: mealType, food_type: foodType, menu_items: textValue });
           }
         }
       });
     });
 
     try {
-      // 1. Run all Updates and Deletes in parallel
-      if (updateOrDeletePromises.length > 0) {
-        // Promise.all waits for all the updates to finish
-        const results = await Promise.all(updateOrDeletePromises);
-        // Check if any of the promises returned an error
-        results.forEach(({ error }) => { if (error) throw error; });
-      }
-      
-      // 2. Run Batch Insert for all new cells
-      if (inserts.length > 0) {
-        const { error } = await supabase.from('weekly_menu').insert(inserts);
-        if (error) throw error;
-      }
+      if (updateOrDeletePromises.length > 0) await Promise.all(updateOrDeletePromises);
+      if (inserts.length > 0) await supabase.from('weekly_menu').insert(inserts);
 
       triggerToast('success', 'Menu updated successfully!');
-      setIsEditing(false);
-      fetchMenuData(); // Refresh data to get the new IDs
+      setIsEditing(false); // This automatically wipes the localStorage draft via the useEffect
+      fetchMenuData(); 
       
     } catch (error) {
-      console.error('Error saving menu:', error);
-      triggerToast('error', error.message || 'Failed to save menu updates.');
+      triggerToast('error', 'Failed to save menu updates.');
     } finally {
       setIsSaving(false);
     }
@@ -168,64 +165,117 @@ const MenuView = ({ triggerToast }) => {
 
   const handleCopyPrevious = async () => {
     setIsLoading(true);
-    // Calculate the date range for the previous 14 days
     const prevStartStr = formatDate(addDays(days[0], -14));
     const prevEndStr = formatDate(addDays(days[13], -14));
 
     try {
-      const { data, error } = await supabase
-        .from('weekly_menu')
-        .select('*')
-        .eq('food_type', foodType)
-        .gte('date', prevStartStr)
-        .lte('date', prevEndStr);
-
+      const { data, error } = await supabase.from('weekly_menu').select('*').eq('food_type', foodType).gte('date', prevStartStr).lte('date', prevEndStr);
       if (error) throw error;
 
-      const newDraft = { ...draftData };
-      
-      data.forEach(item => {
-        // Safely parse the SQL date string and shift it forward 14 days
-        const [y, m, d] = item.date.split('-');
-        const originalDateObj = new Date(y, m - 1, d); 
-        const futureDateStr = formatDate(addDays(originalDateObj, 14));
-        
-        const key = `${futureDateStr}_${item.meal_type}`;
-
-        // Only overwrite the cell if it doesn't already have an existing saved entry in the DB
-        if (!menuData[key]?.id) {
-          newDraft[key] = {
-            ...newDraft[key],
-            menu_items: item.menu_items
-          };
-        }
+      setDraftData(prevDraft => {
+        const newDraft = { ...prevDraft };
+        data.forEach(item => {
+          const [y, m, d] = item.date.split('-');
+          const futureDateStr = formatDate(addDays(new Date(y, m - 1, d), 14));
+          const key = `${futureDateStr}_${item.meal_type}`;
+          if (!menuData[key]?.id) newDraft[key] = { ...newDraft[key], menu_items: item.menu_items };
+        });
+        return newDraft;
       });
-
-      setDraftData(newDraft);
       triggerToast('success', 'Imported previous 14-day menu!');
     } catch (error) {
-      console.error('Copy error:', error);
       triggerToast('error', 'Failed to copy previous menu.');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // NEW: Updated to handle the strict { week1: [], week2: [] } JSON format
+  // NEW: Robust mapping logic that safely merges both weeks
+  const applyParsedDataToDraft = (parsedData) => {
+    setDraftData(prevDraft => {
+      // Start with a clean copy of the current draft
+      const mergedDraft = { ...prevDraft };
+
+      // Helper function that strictly mutates the mergedDraft object
+      const applyWeek = (aiWeekArray, targetUiWeekArray) => {
+        if (!Array.isArray(aiWeekArray)) return;
+        
+        aiWeekArray.forEach(row => {
+          // Find the matching Date object in our UI's current week view
+          const targetDayDate = targetUiWeekArray.find(d => 
+            d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() === row.day?.toLowerCase()
+          );
+
+          if (targetDayDate) {
+            const dateStr = formatDate(targetDayDate);
+            
+            // Safely merge the new AI text with whatever might already be in that cell
+            if (row.breakfast) {
+              mergedDraft[`${dateStr}_breakfast`] = { 
+                ...mergedDraft[`${dateStr}_breakfast`], 
+                menu_items: row.breakfast 
+              };
+            }
+            if (row.lunch) {
+              mergedDraft[`${dateStr}_lunch`] = { 
+                ...mergedDraft[`${dateStr}_lunch`], 
+                menu_items: row.lunch 
+              };
+            }
+            if (row.dinner) {
+              mergedDraft[`${dateStr}_dinner`] = { 
+                ...mergedDraft[`${dateStr}_dinner`], 
+                menu_items: row.dinner 
+              };
+            }
+          }
+        });
+      };
+
+      // Apply Week 1 data to the first 7 days
+      if (parsedData.week1) {
+        applyWeek(parsedData.week1, week1);
+      }
+      
+      // Apply Week 2 data to the next 7 days
+      if (parsedData.week2) {
+        applyWeek(parsedData.week2, week2);
+      }
+
+      // Return the fully merged object to React state
+      return mergedDraft;
+    });
+    
+    // Automatically open the edit view so the admin can review the changes
+    setIsEditing(true); 
+  };
+
+  // NEW: Sends the file to the background context
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Pass the triggerToast to the context so it can talk to the user from the background
+    startParsing(file, triggerToast);
+    
+    if (fileInputRef.current) fileInputRef.current.value = ''; 
+  };
 
   const handleCancel = () => {
     setDraftData(menuData);
-    setIsEditing(false);
+    setIsEditing(false); // Wipes local storage via useEffect
   };
 
   const navigateWeeks = (weeks) => {
     if (isEditing) {
       const confirmLeave = window.confirm("You have unsaved changes. Discard them?");
       if (!confirmLeave) return;
+      setIsEditing(false); // Clean up memory if they force leave
     }
     setCurrentMonday(addDays(currentMonday, weeks * 7));
   };
 
-  // Render a 7-day table
   const renderWeekTable = (weekDays, title) => (
     <div className="admin-table-wrapper" style={{ marginBottom: '30px' }}>
       <div className="admin-table-header" style={{ background: 'var(--bg-card)' }}>
@@ -280,23 +330,20 @@ const MenuView = ({ triggerToast }) => {
 
   return (
     <div className="menu-view">
-      {/* Top Controls */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         
-        {/* Navigation & Date Range */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="icon-btn" onClick={() => navigateWeeks(-2)} title="Previous 2 Weeks">
+          <button className="icon-btn" onClick={() => navigateWeeks(-2)}>
             <ChevronLeft size={18} />
           </button>
           <div style={{ fontWeight: 700, color: 'var(--text-main)', minWidth: '220px', textAlign: 'center' }}>
             {days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {days[13].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </div>
-          <button className="icon-btn" onClick={() => navigateWeeks(2)} title="Next 2 Weeks">
+          <button className="icon-btn" onClick={() => navigateWeeks(2)}>
             <ChevronRight size={18} />
           </button>
         </div>
 
-        {/* Filters and Actions */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <select 
             className="admin-filter-select"
@@ -309,13 +356,30 @@ const MenuView = ({ triggerToast }) => {
           </select>
 
           {!isEditing ? (
-            <button className="btn-primary" onClick={() => setIsEditing(true)}>
-              <Edit3 size={16} /> Edit Menu
-            </button>
+            <>
+              <input 
+                type="file" 
+                accept="application/pdf,image/*" 
+                style={{ display: 'none' }} 
+                ref={fileInputRef} 
+                onChange={handleFileUpload} 
+              />
+              <button 
+                className="btn-ghost" 
+                onClick={() => fileInputRef.current.click()} 
+                disabled={isParsing || isLoading}
+              >
+                {isParsing ? <span className="spin">↻</span> : <Upload size={16} />} 
+                {isParsing ? 'Parsing...' : 'Upload PDF'}
+              </button>
+
+              <button className="btn-primary" onClick={() => setIsEditing(true)}>
+                <Edit3 size={16} /> Edit Menu
+              </button>
+            </>
           ) : (
             <>
-              {/* NEW COPY BUTTON */}
-              <button className="btn-ghost" onClick={handleCopyPrevious} disabled={isSaving || isLoading} title="Auto-fill with previous 14 days">
+              <button className="btn-ghost" onClick={handleCopyPrevious} disabled={isSaving || isLoading}>
                 <Copy size={16} /> Copy Previous 14 Days
               </button>
               

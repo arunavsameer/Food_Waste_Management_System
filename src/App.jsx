@@ -3,6 +3,7 @@ import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { supabase } from './lib/supabase'; 
 import { ThemeProvider } from './context/ThemeContext'; 
+import { MenuParseProvider } from './context/MenuParseContext'; // <-- NEW IMPORT
 import ThemeToggle from './components/ThemeToggle';     
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -117,20 +118,23 @@ const AuthListener = () => {
 function App() {
   return (
     <ThemeProvider> 
-      <Router>
-        <AuthListener />
-        <ThemeToggle /> 
-        <Routes>
-          <Route path="/" element={<Login />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/update-password" element={<UpdatePassword />} />
-          
-          <Route path="/student" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
-          <Route path="/caterer" element={<ProtectedRoute allowedRoles={['caterer']}><CatererDashboard /></ProtectedRoute>} />
-          <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-        </Routes>
-      </Router>
+      {/* NEW: Wrapping the Router in our MenuParseProvider so background parsing survives navigation */}
+      <MenuParseProvider>
+        <Router>
+          <AuthListener />
+          <ThemeToggle /> 
+          <Routes>
+            <Route path="/" element={<Login />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/update-password" element={<UpdatePassword />} />
+            
+            <Route path="/student" element={<ProtectedRoute allowedRoles={['student']}><StudentDashboard /></ProtectedRoute>} />
+            <Route path="/caterer" element={<ProtectedRoute allowedRoles={['caterer']}><CatererDashboard /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+          </Routes>
+        </Router>
+      </MenuParseProvider>
     </ThemeProvider>
   );
 }

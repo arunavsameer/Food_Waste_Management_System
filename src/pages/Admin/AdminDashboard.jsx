@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef, use } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard, FileBarChart2, MessageSquare,
   Users, Send, LogOut, Menu, X,
-  Check, AlertCircle, ShieldCheck
+  Check, AlertCircle, ShieldCheck, User, Phone
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './Admin.css';
@@ -16,6 +16,14 @@ import UsersView         from './components/UsersView';
 
 import { useLogout } from '../../hooks/useLogout';
 
+// Helper: first two initials from a full name
+const getInitials = (name) => {
+  if (!name) return 'AD';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
@@ -23,15 +31,31 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
+  
+  // Profile dropdown state
+  const [showProfile, setShowProfile] = useState(false);
+  const profileRef = useRef(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setShowProfile(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   useEffect(() => {
     const fetchProfile = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
+          // Fetch profile and join with admins table
           const { data } = await supabase
             .from('profiles')
-            .select('*')
+            .select(`*, admins (*)`)
             .eq('id', user.id)
             .single();
           setAdminProfile(data);
@@ -65,6 +89,13 @@ const AdminDashboard = () => {
     { id: 'messages', icon: <Send           size={20} />, label: 'Messages'   },
     { id: 'users',    icon: <Users          size={20} />, label: 'Users'      },
   ];
+
+  // Admin Data Extract
+  // Note: Depending on your exact Supabase relationship setup, admins might come back as an object or an array of 1.
+  const adminData = Array.isArray(adminProfile?.admins) ? adminProfile.admins[0] : adminProfile?.admins;
+  const adminName = adminData?.name || 'Admin';
+  const adminPhone = adminData?.phone_no || '—';
+  const initials = getInitials(adminName);
 
   return (
     <div className="dashboard-container">
@@ -127,19 +158,60 @@ const AdminDashboard = () => {
           <div className="user-info">
             <div className="user-details">
               <span className="label">LOGGED IN AS</span>
-              <span className="value">{adminProfile?.email || 'Admin'}</span>
+              <span className="value">{adminName || 'Admin'}</span>
             </div>
-            <div
-              style={{
-                width: 42, height: 42, borderRadius: '50%',
-                background: 'linear-gradient(135deg, var(--danger), #ff9f43)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: '#fff', fontWeight: 800, fontSize: '0.85rem',
-                flexShrink: 0,
-              }}
-              title="Admin"
-            >
-              AD
+            
+            {/* Avatar + Dropdown */}
+            <div className="profile-wrapper" ref={profileRef}>
+              <button
+                className="avatar-btn"
+                onClick={() => setShowProfile(prev => !prev)}
+                title="Profile"
+                style={{
+                  background: 'linear-gradient(135deg, var(--danger), #ff9f43)',
+                  color: '#fff',
+                  border: 'none',
+                }}
+              >
+                {initials}
+              </button>
+
+              {showProfile && (
+                <div className="profile-dropdown">
+                  {/* ── Top: Avatar + Name ── */}
+                  <div className="pd-header">
+                    <div 
+                      className="pd-avatar-large"
+                      style={{ background: 'linear-gradient(135deg, var(--danger), #ff9f43)', color: '#fff' }}
+                    >
+                      {initials}
+                    </div>
+                    <p className="pd-name">{adminName}</p>
+                    <p className="pd-sub">{adminProfile?.email || ''}</p>
+                  </div>
+
+                  <div className="pd-divider" />
+
+                  {/* ── Info Rows ── */}
+                  <ul className="pd-menu">
+                    <li className="pd-item">
+                      <span className="pd-item-icon"><ShieldCheck size={16} /></span>
+                      <span className="pd-item-label">Role</span>
+                      <span className="pd-item-value">Administrator</span>
+                    </li>
+                    <li className="pd-item">
+                      <span className="pd-item-icon"><User size={16} /></span>
+                      <span className="pd-item-label">Name</span>
+                      <span className="pd-item-value">{adminName}</span>
+                    </li>
+                    <li className="pd-item">
+                      <span className="pd-item-icon"><Phone size={16} /></span>
+                      <span className="pd-item-label">Phone No</span>
+                      <span className="pd-item-value">{adminPhone}</span>
+                    </li>
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </header>

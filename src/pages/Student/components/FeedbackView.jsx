@@ -249,33 +249,31 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
             {selectedChips.length > 0 && (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {selectedChips.map((chip) => (
-                  <span key={chip} style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '5px',
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    backgroundColor: color.selectedBg,
-                    color: 'white',
-                    fontSize: '0.8rem',
-                    fontWeight: '500',
-                  }}>
+                  <button
+                    key={chip}
+                    type="button"
+                    onClick={() => handleRemoveChip(chip)}
+                    title="Click to remove"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      backgroundColor: color.selectedBg,
+                      color: 'white',
+                      fontSize: '0.8rem',
+                      fontWeight: '500',
+                      border: 'none',
+                      cursor: 'pointer',
+                      transition: 'opacity 0.15s ease',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.opacity = '0.75'}
+                    onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                  >
                     {chip}
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveChip(chip)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'white',
-                        cursor: 'pointer',
-                        padding: '0',
-                        fontSize: '1rem',
-                        lineHeight: '1',
-                        opacity: 0.85,
-                      }}
-                    >×</button>
-                  </span>
+                    <span style={{ fontSize: '1rem', lineHeight: '1', opacity: 0.85 }}>×</span>
+                  </button>
                 ))}
               </div>
             )}

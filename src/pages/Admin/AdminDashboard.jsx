@@ -3,7 +3,7 @@ import { supabase } from '../../lib/supabase';
 import {
   LayoutDashboard, FileBarChart2, MessageSquare,
   Users, Send, LogOut, Menu, X,
-  Check, AlertCircle, ShieldCheck, User, Phone, Utensils
+  Check, AlertCircle, ShieldCheck, User, Phone, Utensils, CalendarDays, Leaf
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './Admin.css';
@@ -14,7 +14,8 @@ import AdminFeedbackView from './components/AdminFeedbackView';
 import MessagesView      from './components/MessagesView';
 import UsersView         from './components/UsersView';
 import MenuView          from './components/MenuView';
-
+import ReportCalendarView from './components/ReportCalendarView'; 
+import CarbonView        from './components/CarbonView';
 import { useLogout } from '../../hooks/useLogout';
 
 // Helper: first two initials from a full name
@@ -86,14 +87,16 @@ const AdminDashboard = () => {
     menu:      'Menu Management', // ADD THIS LINE
   };
 
-  const NAV_ITEMS = [
-    { id: 'overview', icon: <LayoutDashboard size={20} />, label: 'Overview'  },
-    { id: 'waste',    icon: <FileBarChart2   size={20} />, label: 'Waste Reports'  },
-    { id: 'feedback', icon: <MessageSquare  size={20} />, label: 'Feedback'   },
-    { id: 'messages', icon: <Send           size={20} />, label: 'Messages'   },
-    { id: 'menu',     icon: <Utensils       size={20} />, label: 'Menu'       }, // ADD THIS LINE
-    { id: 'users',    icon: <Users          size={20} />, label: 'Users'      },
-  ];
+const NAV_ITEMS = [
+  { id: 'overview',         icon: <LayoutDashboard size={20} />, label: 'Overview'         },
+  { id: 'waste',            icon: <FileBarChart2   size={20} />, label: 'Waste Reports'    },
+  { id: 'report-calendar',  icon: <CalendarDays    size={20} />, label: 'Report Calendar'  },
+  { id: 'feedback',         icon: <MessageSquare   size={20} />, label: 'Feedback'         },
+  { id: 'messages',         icon: <Send            size={20} />, label: 'Messages'         },
+  { id: 'menu',             icon: <Utensils        size={20} />, label: 'Menu'             },
+  { id: 'users',            icon: <Users           size={20} />, label: 'Users'            },
+  { id: 'carbon',           icon: <Leaf            size={20} />, label: 'Carbon Insights'  },
+];
 
   // Admin Data Extract
   // Note: Depending on your exact Supabase relationship setup, admins might come back as an object or an array of 1.
@@ -228,6 +231,8 @@ const AdminDashboard = () => {
           {activeTab === 'messages'  && <MessagesView />}
           {activeTab === 'menu'      && <MenuView triggerToast={triggerToast} />}
           {activeTab === 'users'     && <UsersView triggerToast={triggerToast} />}
+          {activeTab === 'report-calendar' && <ReportCalendarView />}
+          {activeTab === 'carbon' && <CarbonView />}
         </div>
       </main>
     </div>

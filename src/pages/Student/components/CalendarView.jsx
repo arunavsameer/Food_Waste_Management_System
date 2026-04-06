@@ -275,6 +275,7 @@ const CalendarView = ({ messName }) => {
                 {selectedDay.rating} / 10
               </strong>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}><span>Feedback Count</span><strong>{selectedDay.count}</strong></div>
           </div>
         </div>
       )}

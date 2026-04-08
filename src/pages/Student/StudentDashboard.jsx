@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef, use } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../lib/supabase';
 import {
   Calendar, MessageSquare, TrendingUp, LogOut, Menu, X,
   Check, AlertCircle, Gamepad2, User, UtensilsCrossed,
-  Building2, Sun, Moon, Hash,
-  ListOrdered
+  Building2, Sun, Moon, Hash, ListOrdered
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../../context/ThemeContext';
@@ -31,13 +30,32 @@ const StudentDashboard = () => {
 
   const [studentProfile, setStudentProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('calendar');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const hamburgerRef = useRef(null);
 
   // --- GAMIFICATION STATE ---
   const [credits, setCredits] = useState(0);
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
+
+  // Check if mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -45,10 +63,29 @@ const StudentDashboard = () => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setShowProfile(false);
       }
+      // Close mobile menu when clicking outside (but not on hamburger)
+      if (isMobile && isMobileMenuOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+        // Don't close if clicking on hamburger button
+        if (hamburgerRef.current && !hamburgerRef.current.contains(e.target)) {
+          setIsMobileMenuOpen(false);
+        }
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isMobile, isMobileMenuOpen]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobile && isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobile, isMobileMenuOpen]);
 
   useEffect(() => {
     const fetchProfileAndStats = async () => {
@@ -107,9 +144,16 @@ const StudentDashboard = () => {
   const initials = getInitials(studentName);
   const messName = studentProfile?.mess_name || 'Your Mess';
 
+  // Handle navigation - closes mobile menu automatically
+  const handleNavClick = (tab) => {
+    setActiveTab(tab);
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+    }
+  };
+
   return (
-    // console.log(studentProfile);
-    <div className="dashboard-container">
+    <div className={`dashboard-container ${isMobileMenuOpen ? 'mobile-menu-open' : ''}`}>
       {toast.show && (
         <div className={`feedback-toast ${toast.type}`}>
           <div className="toast-icon">
@@ -119,44 +163,76 @@ const StudentDashboard = () => {
         </div>
       )}
 
-      {/* Sidebar */}
-      <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-        <div className="brand" style={{ justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
-          {isSidebarOpen && <h2>EcoPlate</h2>}
-          <button className="toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+      {/* Sidebar / Mobile Menu */}
+      <aside 
+        ref={mobileMenuRef}
+        className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''} ${!isMobile ? 'desktop-sidebar' : ''}`}
+      >
+        <div className="brand">
+          <h2>EcoPlate</h2>
+          {/* Close button inside sidebar for mobile */}
+          {isMobile && (
+            <button className="close-menu-btn" onClick={() => setIsMobileMenuOpen(false)}>
+              <X size={20} />
+            </button>
+          )}
         </div>
 
         <nav className="nav-menu">
-          <button className={`nav-item ${activeTab === 'calendar' ? 'active' : ''}`} onClick={() => setActiveTab('calendar')}>
+          <button 
+            className={`nav-item ${activeTab === 'calendar' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('calendar')}
+          >
             <Calendar size={20} />
-            {isSidebarOpen && <span>Food Calendar</span>}
+            <span>Food Calendar</span>
           </button>
-          <button className={`nav-item ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>
+          <button 
+            className={`nav-item ${activeTab === 'feedback' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('feedback')}
+          >
             <MessageSquare size={20} />
-            {isSidebarOpen && <span>Give Feedback</span>}
+            <span>Give Feedback</span>
           </button>
-          <button className={`nav-item ${activeTab === 'trends' ? 'active' : ''}`} onClick={() => setActiveTab('trends')}>
+          <button 
+            className={`nav-item ${activeTab === 'trends' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('trends')}
+          >
             <TrendingUp size={20} />
-            {isSidebarOpen && <span>My Trends</span>}
+            <span>My Trends</span>
           </button>
-          <button className={`nav-item ${activeTab === 'game' ? 'active' : ''}`} onClick={() => setActiveTab('game')}>
+          <button 
+            className={`nav-item ${activeTab === 'game' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('game')}
+          >
             <Gamepad2 size={20} />
-            {isSidebarOpen && <span>Arcade Zone</span>}
+            <span>Arcade Zone</span>
           </button>
         </nav>
 
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
-            {isSidebarOpen && <span>Logout</span>}
+            <span>Logout</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="main-content">
+        {/* Hamburger Menu Button - Placed in main content flow, NOT sticky */}
+        {isMobile && (
+          <div className="hamburger-wrapper">
+            <button 
+              ref={hamburgerRef}
+              className="hamburger-btn"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        )}
+
         <header className="top-bar">
           <div className="page-title">
             {activeTab === 'calendar' && 'Mess Performance Calendar'}
@@ -168,7 +244,7 @@ const StudentDashboard = () => {
             {/* Credit Badge */}
             <div
               className="credit-badge"
-              onClick={() => setActiveTab('game')}
+              onClick={() => handleNavClick('game')}
               style={{
                 cursor: 'pointer', marginRight: '15px', display: 'flex',
                 alignItems: 'center', gap: '5px', background: 'var(--bg-hover)',
@@ -197,7 +273,6 @@ const StudentDashboard = () => {
 
               {showProfile && (
                 <div className="profile-dropdown">
-                  {/* ── Top: Avatar + Name ── */}
                   <div className="pd-header">
                     <div className="pd-avatar-large">{initials}</div>
                     <p className="pd-name">{studentName || 'Student'}</p>
@@ -206,7 +281,6 @@ const StudentDashboard = () => {
 
                   <div className="pd-divider" />
 
-                  {/* ── Info Rows ── */}
                   <ul className="pd-menu">
                     <li className="pd-item">
                       <span className="pd-item-icon"><Building2 size={16} /></span>
@@ -227,11 +301,8 @@ const StudentDashboard = () => {
                       <span className="pd-item-icon"><ListOrdered size={16} /></span>
                       <span className="pd-item-label">Serial No</span>
                       <span className="pd-item-value">{studentProfile?.students?.serial_no || '—'}</span>
-                      {/* console.log(studentProfile) */}
                     </li>
                   </ul>
-
-                  {/* <div className="pd-divider" /> */}
                 </div>
               )}
             </div>
@@ -240,16 +311,13 @@ const StudentDashboard = () => {
 
         <div className="content-area">
           {activeTab === 'calendar' && <CalendarView messName />}
-
           {activeTab === 'feedback' && (
             <FeedbackView
               onSuccessfulSubmit={handleFeedbackSuccess}
               onError={(msg) => triggerToast('error', msg)}
             />
           )}
-
           {activeTab === 'trends' && <TrendsView />}
-
           {activeTab === 'game' && (
             <GameView credits={credits} onConsumeCredit={handleConsumeCredit} />
           )}

@@ -17,10 +17,58 @@ const CatererDashboard = () => {
   const { theme, toggleTheme } = useTheme();
   const [profile, setProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('log');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const hamburgerRef = useRef(null);
+
+  // Check if mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+      // Close mobile menu when clicking outside (but not on hamburger)
+      if (isMobile && isMobileMenuOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+        if (hamburgerRef.current && !hamburgerRef.current.contains(event.target)) {
+          setIsMobileMenuOpen(false);
+        }
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMobile, isMobileMenuOpen]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobile && isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobile, isMobileMenuOpen]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -40,16 +88,6 @@ const CatererDashboard = () => {
     fetchProfile();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsProfileOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const handleLogout = useLogout();
 
   const getInitials = (name) => {
@@ -57,47 +95,87 @@ const CatererDashboard = () => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
+  // Handle navigation - closes mobile menu automatically
+  const handleNavClick = (tab) => {
+    setActiveTab(tab);
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+    }
+  };
+
   return (
-    <div className="dashboard-container caterer">
-      {/* Sidebar */}
-      <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-        <div className="brand" style={{ justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
-          {isSidebarOpen && <h2>EcoPlate</h2>}
-          <button className="toggle-btn" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+    <div className={`dashboard-container caterer ${isMobileMenuOpen ? 'mobile-menu-open' : ''}`}>
+      {/* Sidebar / Mobile Menu */}
+      <aside 
+        ref={mobileMenuRef}
+        className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''} ${!isMobile ? 'desktop-sidebar' : ''}`}
+      >
+        <div className="brand">
+          <h2>EcoPlate</h2>
+          {/* Close button inside sidebar for mobile */}
+          {isMobile && (
+            <button className="close-menu-btn" onClick={() => setIsMobileMenuOpen(false)}>
+              <X size={20} />
+            </button>
+          )}
         </div>
 
         <span className="nav-menu-label">MENU</span>
         <nav className="nav-menu">
-          <button className={`nav-item ${activeTab === 'log' ? 'active' : ''}`} onClick={() => setActiveTab('log')}>
+          <button 
+            className={`nav-item ${activeTab === 'log' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('log')}
+          >
             <Trash2 size={20} />
-            {isSidebarOpen && <span>Log Waste</span>}
+            <span>Log Waste</span>
           </button>
-          <button className={`nav-item ${activeTab === 'messages' ? 'active' : ''}`} onClick={() => setActiveTab('messages')}>
+          <button 
+            className={`nav-item ${activeTab === 'messages' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('messages')}
+          >
             <Bell size={20} />
-            {isSidebarOpen && <span>Messages</span>}
+            <span>Messages</span>
           </button>
-          <button className={`nav-item ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>
+          <button 
+            className={`nav-item ${activeTab === 'history' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('history')}
+          >
             <History size={20} />
-            {isSidebarOpen && <span>History</span>}
+            <span>History</span>
           </button>
-          <button className={`nav-item ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>
+          <button 
+            className={`nav-item ${activeTab === 'feedback' ? 'active' : ''}`} 
+            onClick={() => handleNavClick('feedback')}
+          >
             <MessageSquare size={20} />
-            {isSidebarOpen && <span>Feedback</span>}
+            <span>Feedback</span>
           </button>
         </nav>
 
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
-            {isSidebarOpen && <span>Logout</span>}
+            <span>Logout</span>
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="main-content">
+        {/* Hamburger Menu Button - Placed in main content flow, NOT sticky */}
+        {isMobile && (
+          <div className="hamburger-wrapper">
+            <button 
+              ref={hamburgerRef}
+              className="hamburger-btn"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        )}
+
         <header className="top-bar">
           <div className="page-title">
             {activeTab === 'log' && 'Log Daily Waste'}
@@ -106,7 +184,7 @@ const CatererDashboard = () => {
             {activeTab === 'feedback' && 'Food Feedback (This Mess)'}
           </div>
 
-          {/* ✅ Updated User Info with rich dropdown */}
+          {/* User Info with rich dropdown */}
           <div className="user-info" ref={dropdownRef}>
             <div className="user-details">
               <span className="label">CURRENT MESS</span>
@@ -124,11 +202,9 @@ const CatererDashboard = () => {
               {isLoading ? '...' : getInitials(profile?.manager_name || profile?.name)}
             </div>
 
-            {/* ✅ Rich Profile Dropdown — matches Student design */}
+            {/* Rich Profile Dropdown */}
             {isProfileOpen && !isLoading && (
               <div className="profile-dropdown">
-
-                {/* Header: avatar + name + mess */}
                 <div className="pd-header">
                   <div className="pd-avatar-large" style={{
                     background: 'linear-gradient(135deg, #e67e22 0%, #f39c12 100%)',
@@ -142,7 +218,6 @@ const CatererDashboard = () => {
 
                 <div className="pd-divider" />
 
-                {/* Info rows */}
                 <ul className="pd-menu">
                   <li className="pd-item">
                     <span className="pd-item-icon">
@@ -152,7 +227,6 @@ const CatererDashboard = () => {
                     <span className="pd-item-value">{profile?.phone_no || '—'}</span>
                   </li>
                 </ul>
-
               </div>
             )}
           </div>

@@ -26,19 +26,36 @@ const getInitials = (name) => {
   return name.slice(0, 2).toUpperCase();
 };
 
-
-
 const AdminDashboard = () => {
   const navigate = useNavigate();
 
   const [adminProfile, setAdminProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
   
   // Profile dropdown state
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
+  const mobileMenuRef = useRef(null);
+  const hamburgerRef = useRef(null);
+
+  // Check if mobile
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  // Handle resize
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -46,10 +63,28 @@ const AdminDashboard = () => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setShowProfile(false);
       }
+      // Close mobile menu when clicking outside (but not on hamburger)
+      if (isMobile && isMobileMenuOpen && mobileMenuRef.current && !mobileMenuRef.current.contains(e.target)) {
+        if (hamburgerRef.current && !hamburgerRef.current.contains(e.target)) {
+          setIsMobileMenuOpen(false);
+        }
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isMobile, isMobileMenuOpen]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (isMobile && isMobileMenuOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isMobile, isMobileMenuOpen]);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -84,29 +119,38 @@ const AdminDashboard = () => {
     feedback:  'Student Feedback',
     messages:  'Messages to Caterers',
     users:     'User Management',
-    menu:      'Menu Management', // ADD THIS LINE
+    menu:      'Menu Management',
+    'report-calendar': 'Report Calendar',
+    carbon:    'Carbon Insights',
   };
 
-const NAV_ITEMS = [
-  { id: 'overview',         icon: <LayoutDashboard size={20} />, label: 'Overview'         },
-  { id: 'waste',            icon: <FileBarChart2   size={20} />, label: 'Waste Reports'    },
-  { id: 'report-calendar',  icon: <CalendarDays    size={20} />, label: 'Report Calendar'  },
-  { id: 'feedback',         icon: <MessageSquare   size={20} />, label: 'Feedback'         },
-  { id: 'messages',         icon: <Send            size={20} />, label: 'Messages'         },
-  { id: 'menu',             icon: <Utensils        size={20} />, label: 'Menu'             },
-  { id: 'users',            icon: <Users           size={20} />, label: 'Users'            },
-  { id: 'carbon',           icon: <Leaf            size={20} />, label: 'Carbon Insights'  },
-];
+  const NAV_ITEMS = [
+    { id: 'overview',         icon: <LayoutDashboard size={20} />, label: 'Overview'         },
+    { id: 'waste',            icon: <FileBarChart2   size={20} />, label: 'Waste Reports'    },
+    { id: 'report-calendar',  icon: <CalendarDays    size={20} />, label: 'Report Calendar'  },
+    { id: 'feedback',         icon: <MessageSquare   size={20} />, label: 'Feedback'         },
+    { id: 'messages',         icon: <Send            size={20} />, label: 'Messages'         },
+    { id: 'menu',             icon: <Utensils        size={20} />, label: 'Menu'             },
+    { id: 'users',            icon: <Users           size={20} />, label: 'Users'            },
+    { id: 'carbon',           icon: <Leaf            size={20} />, label: 'Carbon Insights'  },
+  ];
 
   // Admin Data Extract
-  // Note: Depending on your exact Supabase relationship setup, admins might come back as an object or an array of 1.
   const adminData = Array.isArray(adminProfile?.admins) ? adminProfile.admins[0] : adminProfile?.admins;
   const adminName = adminData?.name || 'Admin';
   const adminPhone = adminData?.phone_no || '—';
   const initials = getInitials(adminName);
 
+  // Handle navigation - closes mobile menu automatically
+  const handleNavClick = (tab) => {
+    setActiveTab(tab);
+    if (isMobile) {
+      setIsMobileMenuOpen(false);
+    }
+  };
+
   return (
-    <div className="dashboard-container">
+    <div className={`dashboard-container ${isMobileMenuOpen ? 'mobile-menu-open' : ''}`}>
       {/* Toast */}
       {toast.show && (
         <div className={`feedback-toast ${toast.type}`}>
@@ -117,17 +161,23 @@ const NAV_ITEMS = [
         </div>
       )}
 
-      {/* ── Sidebar ── */}
-      <aside className={`sidebar ${isSidebarOpen ? 'open' : 'closed'}`}>
-        <div className="brand" style={{ justifyContent: isSidebarOpen ? 'space-between' : 'center' }}>
-          {isSidebarOpen && <h2>EcoPlate</h2>}
-          <button className="toggle-btn" onClick={() => setIsSidebarOpen(s => !s)}>
-            {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+      {/* ── Sidebar / Mobile Menu ── */}
+      <aside 
+        ref={mobileMenuRef}
+        className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''} ${!isMobile ? 'desktop-sidebar' : ''}`}
+      >
+        <div className="brand">
+          <h2>EcoPlate</h2>
+          {/* Close button inside sidebar for mobile */}
+          {isMobile && (
+            <button className="close-menu-btn" onClick={() => setIsMobileMenuOpen(false)}>
+              <X size={20} />
+            </button>
+          )}
         </div>
 
-        {/* Admin badge */}
-        {isSidebarOpen && (
+        {/* Admin badge - only show on desktop or when sidebar is open on mobile */}
+        {(!isMobile || (isMobile && isMobileMenuOpen)) && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '8px 12px', borderRadius: '10px', marginBottom: '12px',
@@ -143,10 +193,10 @@ const NAV_ITEMS = [
             <button
               key={item.id}
               className={`nav-item ${activeTab === item.id ? 'active' : ''}`}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => handleNavClick(item.id)}
             >
               {item.icon}
-              {isSidebarOpen && <span>{item.label}</span>}
+              <span>{item.label}</span>
             </button>
           ))}
         </nav>
@@ -154,13 +204,27 @@ const NAV_ITEMS = [
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
-            {isSidebarOpen && <span>Logout</span>}
+            <span>Logout</span>
           </button>
         </div>
       </aside>
 
       {/* ── Main Content ── */}
       <main className="main-content">
+        {/* Hamburger Menu Button - Placed in main content flow, NOT sticky */}
+        {isMobile && (
+          <div className="hamburger-wrapper">
+            <button 
+              ref={hamburgerRef}
+              className="hamburger-btn"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label="Toggle menu"
+            >
+              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+            </button>
+          </div>
+        )}
+
         <header className="top-bar">
           <div className="page-title">{PAGE_TITLES[activeTab]}</div>
           <div className="user-info">

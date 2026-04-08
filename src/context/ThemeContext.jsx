@@ -4,7 +4,7 @@ const ThemeContext = createContext();
 
 export const ThemeProvider = ({ children }) => {
   // Check local storage or default to light
-  const [theme, setTheme] = useState(localStorage.getItem('ecoplate-theme') || 'light');
+  const [theme, setTheme] = useState(localStorage.getItem('ecoplate-theme') || 'dark');
 
   useEffect(() => {
     // 1. Update the HTML attribute for CSS selectors

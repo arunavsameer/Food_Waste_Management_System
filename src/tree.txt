@@ -6,6 +6,7 @@
 │   ├── ProtectedRoute.jsx
 │   └── ThemeToggle.jsx
 ├── context
+│   ├── MenuParseContext.jsx
 │   └── ThemeContext.jsx
 ├── hooks
 │   └── useLogout.js
@@ -19,9 +20,11 @@
 │   │   ├── AdminDashboard.jsx
 │   │   └── components
 │   │       ├── AdminFeedbackView.jsx
+│   │       ├── CarbonView.jsx
 │   │       ├── MenuView.jsx
 │   │       ├── MessagesView.jsx
 │   │       ├── OverviewView.jsx
+│   │       ├── ReportCalendarView.jsx
 │   │       ├── UsersView.jsx
 │   │       └── WasteReportsView.jsx
 │   ├── Caterer
@@ -46,8 +49,7 @@
 │       │   ├── GameView.jsx
 │       │   └── TrendsView.jsx
 │       ├── Student.css
-│       ├── StudentDashboard.jsx
-│       └── todo.txt
+│       └── StudentDashboard.jsx
 └── tree.txt
 
-14 directories, 37 files
+14 directories, 39 files

@@ -86,7 +86,6 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
   const handleMealTypeChange = (val) => {
     setMealType(val);
     setSelectedChips([]);
-    setManualComment('');
   };
 
   const handleAddChip = (chip) => {

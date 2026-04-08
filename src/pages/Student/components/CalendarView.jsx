@@ -312,7 +312,7 @@ const CalendarView = ({ messName }) => {
                 {data ? (
                   <>
                     <div className="rating-score">{data.rating}</div>
-                    <div className="dish-name">Menu Item</div>
+                    <div> </div>
                   </>
                 ) : <div className="dish-name" style={{ opacity: 0.3 }}>-</div>}
               </div>

@@ -31,7 +31,8 @@ const AdminDashboard = () => {
 
   const [adminProfile, setAdminProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Desktop sidebar toggle
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
   const [toast, setToast] = useState({ show: false, type: 'success', message: '' });
   
   // Profile dropdown state
@@ -91,7 +92,6 @@ const AdminDashboard = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          // Fetch profile and join with admins table
           const { data } = await supabase
             .from('profiles')
             .select(`*, admins (*)`)
@@ -141,12 +141,17 @@ const AdminDashboard = () => {
   const adminPhone = adminData?.phone_no || '—';
   const initials = getInitials(adminName);
 
-  // Handle navigation - closes mobile menu automatically
+  // Handle navigation - closes mobile menu automatically (desktop doesn't need closing)
   const handleNavClick = (tab) => {
     setActiveTab(tab);
     if (isMobile) {
       setIsMobileMenuOpen(false);
     }
+  };
+
+  // Toggle desktop sidebar
+  const toggleDesktopSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
   };
 
   return (
@@ -164,10 +169,23 @@ const AdminDashboard = () => {
       {/* ── Sidebar / Mobile Menu ── */}
       <aside 
         ref={mobileMenuRef}
-        className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''} ${!isMobile ? 'desktop-sidebar' : ''}`}
+        className={`sidebar 
+          ${!isMobile && (isSidebarOpen ? 'open' : 'closed')} 
+          ${isMobile && isMobileMenuOpen ? 'mobile-open' : ''} 
+          ${!isMobile ? 'desktop-sidebar' : ''}`}
       >
-        <div className="brand">
-          <h2>EcoPlate</h2>
+        <div className="brand" style={{ justifyContent: (!isMobile && !isSidebarOpen) ? 'center' : 'space-between' }}>
+          {(!isMobile && isSidebarOpen) && <h2>EcoPlate</h2>}
+          {(!isMobile && !isSidebarOpen) && <h2 style={{ fontSize: '1.2rem' }}>E</h2>}
+          {isMobile && <h2>EcoPlate</h2>}
+          
+          {/* Desktop toggle button - only show on desktop */}
+          {!isMobile && (
+            <button className="toggle-btn" onClick={toggleDesktopSidebar}>
+              {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          )}
+          
           {/* Close button inside sidebar for mobile */}
           {isMobile && (
             <button className="close-menu-btn" onClick={() => setIsMobileMenuOpen(false)}>
@@ -176,8 +194,8 @@ const AdminDashboard = () => {
           )}
         </div>
 
-        {/* Admin badge - only show on desktop or when sidebar is open on mobile */}
-        {(!isMobile || (isMobile && isMobileMenuOpen)) && (
+        {/* Admin badge - show on desktop when open, or on mobile when menu is open */}
+        {(!isMobile && isSidebarOpen) && (
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '8px 12px', borderRadius: '10px', marginBottom: '12px',
@@ -185,6 +203,29 @@ const AdminDashboard = () => {
           }}>
             <ShieldCheck size={16} color="var(--danger)" />
             <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--danger)' }}>ADMIN PANEL</span>
+          </div>
+        )}
+
+        {/* Admin badge for mobile */}
+        {isMobile && isMobileMenuOpen && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '8px',
+            padding: '8px 12px', borderRadius: '10px', marginBottom: '12px',
+            background: 'rgba(231,76,60,0.1)',
+          }}>
+            <ShieldCheck size={16} color="var(--danger)" />
+            <span style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--danger)' }}>ADMIN PANEL</span>
+          </div>
+        )}
+
+        {/* Admin badge for desktop when sidebar is closed - icon only */}
+        {!isMobile && !isSidebarOpen && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '8px', borderRadius: '10px', marginBottom: '12px',
+            background: 'rgba(231,76,60,0.1)',
+          }}>
+            <ShieldCheck size={20} color="var(--danger)" />
           </div>
         )}
 
@@ -196,7 +237,8 @@ const AdminDashboard = () => {
               onClick={() => handleNavClick(item.id)}
             >
               {item.icon}
-              <span>{item.label}</span>
+              {(!isMobile && isSidebarOpen) && <span>{item.label}</span>}
+              {(isMobile && isMobileMenuOpen) && <span>{item.label}</span>}
             </button>
           ))}
         </nav>
@@ -204,14 +246,15 @@ const AdminDashboard = () => {
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
-            <span>Logout</span>
+            {(!isMobile && isSidebarOpen) && <span>Logout</span>}
+            {(isMobile && isMobileMenuOpen) && <span>Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* ── Main Content ── */}
       <main className="main-content">
-        {/* Hamburger Menu Button - Placed in main content flow, NOT sticky */}
+        {/* Hamburger Menu Button - ONLY on mobile, NOT sticky */}
         {isMobile && (
           <div className="hamburger-wrapper">
             <button 
@@ -250,7 +293,6 @@ const AdminDashboard = () => {
 
               {showProfile && (
                 <div className="profile-dropdown">
-                  {/* ── Top: Avatar + Name ── */}
                   <div className="pd-header">
                     <div 
                       className="pd-avatar-large"
@@ -264,7 +306,6 @@ const AdminDashboard = () => {
 
                   <div className="pd-divider" />
 
-                  {/* ── Info Rows ── */}
                   <ul className="pd-menu">
                     <li className="pd-item">
                       <span className="pd-item-icon"><ShieldCheck size={16} /></span>

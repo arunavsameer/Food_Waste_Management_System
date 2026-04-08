@@ -17,7 +17,8 @@ const CatererDashboard = () => {
   const { theme, toggleTheme } = useTheme();
   const [profile, setProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('log');
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Desktop sidebar toggle
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // Mobile menu state
   const [isLoading, setIsLoading] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -103,15 +104,33 @@ const CatererDashboard = () => {
     }
   };
 
+  // Toggle desktop sidebar
+  const toggleDesktopSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
   return (
     <div className={`dashboard-container caterer ${isMobileMenuOpen ? 'mobile-menu-open' : ''}`}>
       {/* Sidebar / Mobile Menu */}
       <aside 
         ref={mobileMenuRef}
-        className={`sidebar ${isMobileMenuOpen ? 'mobile-open' : ''} ${!isMobile ? 'desktop-sidebar' : ''}`}
+        className={`sidebar 
+          ${!isMobile && (isSidebarOpen ? 'open' : 'closed')} 
+          ${isMobile && isMobileMenuOpen ? 'mobile-open' : ''} 
+          ${!isMobile ? 'desktop-sidebar' : ''}`}
       >
-        <div className="brand">
-          <h2>EcoPlate</h2>
+        <div className="brand" style={{ justifyContent: (!isMobile && !isSidebarOpen) ? 'center' : 'space-between' }}>
+          {(!isMobile && isSidebarOpen) && <h2>EcoPlate</h2>}
+          {(!isMobile && !isSidebarOpen) && <h2 style={{ fontSize: '1.2rem' }}>E</h2>}
+          {isMobile && <h2>EcoPlate</h2>}
+          
+          {/* Desktop toggle button - only show on desktop */}
+          {!isMobile && (
+            <button className="toggle-btn" onClick={toggleDesktopSidebar}>
+              {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+          )}
+          
           {/* Close button inside sidebar for mobile */}
           {isMobile && (
             <button className="close-menu-btn" onClick={() => setIsMobileMenuOpen(false)}>
@@ -120,49 +139,62 @@ const CatererDashboard = () => {
           )}
         </div>
 
-        <span className="nav-menu-label">MENU</span>
+        {/* MENU label - only show on desktop when open, or on mobile when menu is open */}
+        {(!isMobile && isSidebarOpen) && <span className="nav-menu-label">MENU</span>}
+        {(!isMobile && !isSidebarOpen) && (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+            <div style={{ width: '2px', height: '20px', background: 'var(--border-color)' }}></div>
+          </div>
+        )}
+        {isMobile && isMobileMenuOpen && <span className="nav-menu-label">MENU</span>}
+
         <nav className="nav-menu">
           <button 
             className={`nav-item ${activeTab === 'log' ? 'active' : ''}`} 
             onClick={() => handleNavClick('log')}
           >
             <Trash2 size={20} />
-            <span>Log Waste</span>
+            {(!isMobile && isSidebarOpen) && <span>Log Waste</span>}
+            {(isMobile && isMobileMenuOpen) && <span>Log Waste</span>}
           </button>
           <button 
             className={`nav-item ${activeTab === 'messages' ? 'active' : ''}`} 
             onClick={() => handleNavClick('messages')}
           >
             <Bell size={20} />
-            <span>Messages</span>
+            {(!isMobile && isSidebarOpen) && <span>Messages</span>}
+            {(isMobile && isMobileMenuOpen) && <span>Messages</span>}
           </button>
           <button 
             className={`nav-item ${activeTab === 'history' ? 'active' : ''}`} 
             onClick={() => handleNavClick('history')}
           >
             <History size={20} />
-            <span>History</span>
+            {(!isMobile && isSidebarOpen) && <span>History</span>}
+            {(isMobile && isMobileMenuOpen) && <span>History</span>}
           </button>
           <button 
             className={`nav-item ${activeTab === 'feedback' ? 'active' : ''}`} 
             onClick={() => handleNavClick('feedback')}
           >
             <MessageSquare size={20} />
-            <span>Feedback</span>
+            {(!isMobile && isSidebarOpen) && <span>Feedback</span>}
+            {(isMobile && isMobileMenuOpen) && <span>Feedback</span>}
           </button>
         </nav>
 
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={handleLogout} title="Logout">
             <LogOut size={20} />
-            <span>Logout</span>
+            {(!isMobile && isSidebarOpen) && <span>Logout</span>}
+            {(isMobile && isMobileMenuOpen) && <span>Logout</span>}
           </button>
         </div>
       </aside>
 
       {/* Main Content */}
       <main className="main-content">
-        {/* Hamburger Menu Button - Placed in main content flow, NOT sticky */}
+        {/* Hamburger Menu Button - ONLY on mobile, NOT sticky */}
         {isMobile && (
           <div className="hamburger-wrapper">
             <button 

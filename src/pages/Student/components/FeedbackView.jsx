@@ -42,6 +42,13 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
   const [showShower, setShowShower] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
 
+  const formatLocalDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   const getRecentDates = () => {
     const dates = [];
     const today = new Date();
@@ -51,7 +58,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
       let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       if (i === 0) label = `Today (${label})`;
       else if (i === 1) label = `Yesterday (${label})`;
-      dates.push({ value: d.toISOString().split('T')[0], label });
+      dates.push({ value: formatLocalDate(d), label }); 
     }
     return dates;
   };
@@ -235,14 +242,14 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
 
           {/* The combined box */}
           <div style={{
-            border: '1.5px solid var(--border, #ddd)',
+            border: '1.5px solid var(--border-color)',
             borderRadius: '8px',
             padding: '10px',
             minHeight: '90px',
             display: 'flex',
             flexDirection: 'column',
             gap: '8px',
-            backgroundColor: 'var(--input-bg, #fff)',
+            backgroundColor: 'var(--bg-input)',
           }}>
             {/* Selected chip tags inside the box */}
             {selectedChips.length > 0 && (
@@ -291,7 +298,7 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
                 width: '100%',
                 fontSize: '0.9rem',
                 backgroundColor: 'transparent',
-                color: 'var(--text, #333)',
+                color: 'var(--text-main)',
                 fontFamily: 'inherit',
                 padding: 0,
               }}

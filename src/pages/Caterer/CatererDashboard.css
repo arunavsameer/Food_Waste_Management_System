@@ -153,7 +153,6 @@
   flex-direction: column;
   gap: 20px;
 }
-
 /* ===========================
    Students skipping widget
    =========================== */
@@ -175,7 +174,8 @@
 .caterer-skip-grid {
   width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* CHANGE: Using auto-fit allows the columns to stack vertically when zoomed in */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 
@@ -200,14 +200,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   padding: 6px 0;
+  /* Define this row as a container so the text inside can measure its width */
+  container-type: inline-size; 
 }
 
 .caterer-skip-meal {
-  font-size: 0.85rem;
   font-weight: 800;
   opacity: 0.95;
+  flex: 1;
+  /* 1. Force the text to stay on a single line */
+  white-space: nowrap; 
+  /* 2. Scale dynamically: min 10px, fluidly scale at 12% of container width, max 0.85rem */
+  font-size: clamp(10px, 12cqi, 0.85rem); 
+  /* 3. Graceful fallback (adds '...') if the screen gets microscopically small */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .caterer-skip-footnote {
@@ -220,7 +229,8 @@
 .caterer-vrn-window {
   --c-vrn-row-h: 38px;
   height: var(--c-vrn-row-h);
-  width: 64px;
+  width: 54px; /* Narrowed slightly to give text more breathing room */
+  flex-shrink: 0; /* Prevents the pill from squishing */
   overflow: hidden;
   border-radius: 12px;
   background: rgba(0, 0, 0, 0.16);
@@ -238,7 +248,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.55rem;
+  font-size: 20px; /* Fixed px ensures text strictly respects the 38px height during zoom */
   font-weight: 900;
   color: white;
   line-height: 1;

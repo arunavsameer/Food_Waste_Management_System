@@ -3,12 +3,19 @@ import { Trash2, Loader2, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from '../../../lib/supabase'; 
 import SkipCountsCard from './SkipCountsCard';
 
+const getLocalDateString = (date = new Date()) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
 const LogWasteView = ({ profile }) => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
   
   const [formData, setFormData] = useState({
-    report_date: new Date().toISOString().split('T')[0],
+    report_date: getLocalDateString(),
     meal_type: 'lunch', 
     kitchen_uncooked: "",
     kitchen_cooked: "",
@@ -25,7 +32,7 @@ const LogWasteView = ({ profile }) => {
     
     const now = new Date();
     const selectedDateStr = formData.report_date;
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalDateString(now);
     const currentHour = now.getHours();
     const currentMinutes = now.getMinutes();
     const currentTimeInMinutes = currentHour * 60 + currentMinutes;
@@ -110,7 +117,7 @@ const LogWasteView = ({ profile }) => {
               <input
                 type="date"
                 className="styled-input"
-                max={new Date().toISOString().split('T')[0]}
+                max={getLocalDateString()}
                 value={formData.report_date}
                 onChange={(e) => setFormData({ ...formData, report_date: e.target.value })}
                 required

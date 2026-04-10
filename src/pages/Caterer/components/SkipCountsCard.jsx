@@ -42,10 +42,19 @@ const SkipCountsCard = ({ messName }) => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const todayStr = new Date().toISOString().split('T')[0];
-      const tomorrowDate = new Date();
+      const formatLocalDate = (date) => {
+        const y = date.getFullYear();
+        const m = String(date.getMonth() + 1).padStart(2, '0');
+        const d = String(date.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
+      };
+
+      const todayDate = new Date();
+      const todayStr = formatLocalDate(todayDate);
+
+      const tomorrowDate = new Date(todayDate);
       tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-      const tomorrowStr = tomorrowDate.toISOString().split('T')[0];
+      const tomorrowStr = formatLocalDate(tomorrowDate);
 
       const { data: students } = await supabase
         .from('students')
@@ -70,10 +79,14 @@ const SkipCountsCard = ({ messName }) => {
         };
 
         skips.forEach(skip => {
-          const dayKey = skip.date === todayStr ? 'today' : 'tomorrow';
-          const mealKey = skip.menu_type.toLowerCase();
-          if (newCounts[dayKey][mealKey] !== undefined) {
-            newCounts[dayKey][mealKey]++;
+          // 2. Strict matching using the exact local date strings
+          const dayKey = skip.date === todayStr ? 'today' : skip.date === tomorrowStr ? 'tomorrow' : null;
+          
+          if (dayKey) {
+            const mealKey = skip.menu_type.toLowerCase();
+            if (newCounts[dayKey][mealKey] !== undefined) {
+              newCounts[dayKey][mealKey]++;
+            }
           }
         });
 

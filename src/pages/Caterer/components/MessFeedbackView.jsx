@@ -37,8 +37,15 @@ const MessFeedbackView = ({ messName }) => {
         const { data: { user }, error: authError } = await supabase.auth.getUser();
         if (authError || !user) return;
 
-        const startOfMonth = new Date(year, month, 1).toISOString().split('T')[0];
-        const endOfMonth   = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        const formatLocalDate = (date) => {
+          const y = date.getFullYear();
+          const m = String(date.getMonth() + 1).padStart(2, '0');
+          const d = String(date.getDate()).padStart(2, '0');
+          return `${y}-${m}-${d}`;
+        };
+
+        const startOfMonth = formatLocalDate(new Date(year, month, 1));
+        const endOfMonth   = formatLocalDate(new Date(year, month + 1, 0));
 
         const [{ data: calData, error: calError }, { data: rawComments, error: commentError }] = await Promise.all([
           supabase

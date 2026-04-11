@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { parseTemplateMessage } from '../../../utils/messageTemplates';
 import { Send, MessageSquareDashed, Loader2, Radio, AlertCircle, RefreshCw } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
@@ -54,18 +55,9 @@ const DateSep = ({ ts }) => (
 /* ─────────────────────────────────────────────
    MAIN COMPONENT
 ───────────────────────────────────────────── */
-const MessagesView = () => {
-  /* current admin's UUID */
+const AdminMessagesView = () => {
   const [adminId,    setAdminId]    = useState(null);
-  /*
-    Set of ALL admin profile UUIDs.
-    Used at render time: if msg.sender_id is in this set → sender is admin (show on right/sent).
-    Otherwise sender is a caterer (show on left/received).
-    This is the only reliable way to classify messages correctly regardless of
-    which admin is logged in.
-  */
   const [adminIdSet, setAdminIdSet] = useState(new Set());
-
   const [caterers,   setCaterers]   = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [selected,   setSelected]   = useState(null);
@@ -79,7 +71,7 @@ const MessagesView = () => {
   const channelRef = useRef(null);
 
   /* ══════════════════════════════════════════
-     1. BOOTSTRAP — current user + all admin IDs + caterers
+     1. BOOTSTRAP
   ══════════════════════════════════════════ */
   useEffect(() => {
     const init = async () => {
@@ -89,14 +81,8 @@ const MessagesView = () => {
         setAdminId(myId);
 
         const [{ data: cats }, { data: adminProfiles }] = await Promise.all([
-          supabase
-            .from('caterers')
-            .select('caterer_id, name, manager_name, phone_no')
-            .order('name'),
-          supabase
-            .from('profiles')
-            .select('id')
-            .eq('role', 'admin'),
+          supabase.from('caterers').select('caterer_id, name, manager_name, phone_no').order('name'),
+          supabase.from('profiles').select('id').eq('role', 'admin'),
         ]);
 
         setCaterers(cats || []);
@@ -111,8 +97,7 @@ const MessagesView = () => {
   }, []);
 
   /* ══════════════════════════════════════════
-     2. FETCH MESSAGES — split into clean separate queries to avoid
-        broken PostgREST compound-AND-with-is-null syntax
+     2. FETCH MESSAGES
   ══════════════════════════════════════════ */
   const fetchMessages = useCallback(async (sel, myAdminId) => {
     if (!sel || !myAdminId) return;
@@ -122,13 +107,6 @@ const MessagesView = () => {
 
     try {
       if (sel.caterer_id === BROADCAST_ID) {
-        /*
-          BROADCAST CHANNEL
-          Show every message where reciever_id IS NULL.
-          This covers:
-            • Admin → all caterers  (sender is admin,   reciever null)
-            • Caterer → all admins  (sender is caterer, reciever null)
-        */
         const { data, error: e } = await supabase
           .from('messages')
           .select('id, sender_id, reciever_id, message, message_time')
@@ -139,31 +117,15 @@ const MessagesView = () => {
         setMessages(data || []);
 
       } else {
-        /*
-          DIRECT CHANNEL with a specific caterer.
-
-          We need 4 categories:
-            A. admin  → caterer  direct   (sender=myAdmin,  reciever=caterer)
-            B. caterer → admin   direct   (sender=caterer,  reciever=myAdmin)
-            C. admin  broadcast           (sender=myAdmin,  reciever=null)
-            D. caterer broadcast to admins(sender=caterer,  reciever=null)
-
-          Strategy: run three simple queries (no nested compound ORs) then merge.
-        */
         const catererId = sel.caterer_id;
 
         const [p2pResult, adminBcastResult, catBcastResult] = await Promise.all([
-          // A + B — direct P2P between this admin and this caterer
           supabase
             .from('messages')
             .select('id, sender_id, reciever_id, message, message_time')
-            .or(
-              `and(sender_id.eq.${myAdminId},reciever_id.eq.${catererId}),` +
-              `and(sender_id.eq.${catererId},reciever_id.eq.${myAdminId})`
-            )
+            .or(`and(sender_id.eq.${myAdminId},reciever_id.eq.${catererId}),and(sender_id.eq.${catererId},reciever_id.eq.${myAdminId})`)
             .order('message_time', { ascending: true }),
 
-          // C — admin broadcasts (null receiver, sent by this admin)
           supabase
             .from('messages')
             .select('id, sender_id, reciever_id, message, message_time')
@@ -171,7 +133,6 @@ const MessagesView = () => {
             .is('reciever_id', null)
             .order('message_time', { ascending: true }),
 
-          // D — caterer's broadcasts to all admins (null receiver, sent by this caterer)
           supabase
             .from('messages')
             .select('id, sender_id, reciever_id, message, message_time')
@@ -184,7 +145,6 @@ const MessagesView = () => {
         if (adminBcastResult.error) throw adminBcastResult.error;
         if (catBcastResult.error)   throw catBcastResult.error;
 
-        // Merge, dedupe, sort by time
         const merged = dedupe([
           ...(p2pResult.data        || []),
           ...(adminBcastResult.data || []),
@@ -216,35 +176,24 @@ const MessagesView = () => {
 
     const ch = supabase
       .channel(`msg-${catererId}-${Date.now()}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
           const msg = payload.new;
           const senderIsAdmin   = adminIdSet.has(msg.sender_id);
           const isBroadcast     = msg.reciever_id === null;
-
           let relevant = false;
 
           if (catererId === BROADCAST_ID) {
-            // Broadcast channel: only null-receiver messages
             relevant = isBroadcast;
           } else {
-            // Category A: direct admin → caterer
             const isAdminToCaterer = senderIsAdmin && msg.reciever_id === catererId;
-            // Category B: direct caterer → admin
             const isCatererToAdmin = msg.sender_id === catererId && !isBroadcast && adminIdSet.has(msg.reciever_id);
-            // Category C: admin broadcast
             const isAdminBroadcast = senderIsAdmin && isBroadcast;
-            // Category D: caterer broadcast
             const isCatererBcast   = msg.sender_id === catererId && isBroadcast;
-
             relevant = isAdminToCaterer || isCatererToAdmin || isAdminBroadcast || isCatererBcast;
           }
 
           if (relevant) {
             setMessages(prev => {
-              // Ignore if already present (covers optimistic inserts)
               if (prev.find(m => m.id === msg.id)) return prev;
               const updated = [...prev, msg];
               updated.sort((a, b) => new Date(a.message_time) - new Date(b.message_time));
@@ -273,9 +222,6 @@ const MessagesView = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /* ══════════════════════════════════════════
-     6. SELECT CHANNEL
-  ══════════════════════════════════════════ */
   const selectChannel = (item) => {
     setSelected(item);
     setInput('');
@@ -300,7 +246,6 @@ const MessagesView = () => {
       message_time: new Date().toISOString(),
     };
 
-    // Optimistic insert with a temp string ID
     const tempId = `temp-${Date.now()}`;
     setMessages(prev => [...prev, { id: tempId, ...payload }]);
     setInput('');
@@ -313,7 +258,6 @@ const MessagesView = () => {
         .single();
 
       if (insErr) throw insErr;
-      // Swap temp row for real DB row
       setMessages(prev => prev.map(m => m.id === tempId ? data : m));
     } catch (err) {
       console.error('send error', err);
@@ -330,10 +274,6 @@ const MessagesView = () => {
 
   /* ══════════════════════════════════════════
      8. RENDER MESSAGES
-        Role logic (applied per message, not per component mount):
-          • msg.sender_id is in adminIdSet  → ADMIN sent it  → right side (sent)
-          • msg.sender_id not in adminIdSet → CATERER sent it → left side (received)
-          • msg.reciever_id === null         → broadcast
   ══════════════════════════════════════════ */
   const isBroadcastChannel = selected?.caterer_id === BROADCAST_ID;
 
@@ -364,15 +304,13 @@ const MessagesView = () => {
       const ts         = msg.message_time;
       const senderIsAdmin = adminIdSet.has(msg.sender_id) || msg.sender_id?.startsWith('temp-');
       const isBcast    = msg.reciever_id === null;
-      const isSent     = senderIsAdmin; // admin-side: admin messages go right
+      const isSent     = senderIsAdmin;
 
-      // Date separator
       if (!lastDate || !isSameDay(lastDate, ts)) {
         items.push(<DateSep key={`sep-${i}`} ts={ts} />);
         lastDate = ts;
       }
 
-      // Sender label (shown above bubble for non-sent, or when broadcast on sent side)
       let senderLabel = null;
       if (isSent && isBcast) {
         senderLabel = `You · Broadcast to all`;
@@ -408,11 +346,7 @@ const MessagesView = () => {
             borderRadius: isSent ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
             fontSize: '0.875rem',
             lineHeight: 1.5,
-            // Colour scheme:
-            //   Admin direct   → green (sent)
-            //   Admin broadcast→ purple (sent)
-            //   Caterer direct → bg-hover (received)
-            //   Caterer bcast  → subtle purple tint (received)
+            whiteSpace: 'pre-wrap', 
             background: isSent
               ? (isBcast ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)' : 'var(--primary-green)')
               : (isBcast ? 'rgba(108,92,231,0.12)' : 'var(--bg-hover)'),
@@ -420,7 +354,7 @@ const MessagesView = () => {
             border: isSent ? 'none' : (isBcast ? '1px solid rgba(108,92,231,0.25)' : '1px solid var(--border-color)'),
             boxShadow: isSent ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
           }}>
-            {msg.message}
+            {parseTemplateMessage(msg.message)}
             <div style={{
               fontSize: '0.65rem', marginTop: '5px', textAlign: 'right',
               opacity: isSent ? 0.75 : 0.55,
@@ -436,7 +370,7 @@ const MessagesView = () => {
   };
 
   /* ══════════════════════════════════════════
-     LOADING GATE
+     RENDER
   ══════════════════════════════════════════ */
   if (loading) return (
     <div className="admin-loading">
@@ -444,18 +378,12 @@ const MessagesView = () => {
     </div>
   );
 
-  /* ══════════════════════════════════════════
-     RENDER
-  ══════════════════════════════════════════ */
   return (
     <div className="messages-layout">
-
       {/* ── Sidebar ── */}
       <div className="messages-sidebar">
         <div className="messages-sidebar-header">Conversations</div>
         <div className="caterer-list">
-
-          {/* Broadcast — pinned at top */}
           <div
             className={`caterer-item ${selected?.caterer_id === BROADCAST_ID ? 'active' : ''}`}
             onClick={() => selectChannel({ caterer_id: BROADCAST_ID, name: 'Broadcast — All Caterers' })}
@@ -474,7 +402,6 @@ const MessagesView = () => {
             </div>
           </div>
 
-          {/* Individual caterers */}
           {caterers.length === 0
             ? <div className="admin-empty" style={{ padding: '20px 10px' }}><p style={{ margin: 0, fontSize: '0.85rem' }}>No caterers found</p></div>
             : caterers.map(c => (
@@ -506,7 +433,6 @@ const MessagesView = () => {
           </div>
         ) : (
           <>
-            {/* Header */}
             <div className="chat-header">
               {isBroadcastChannel ? (
                 <div style={{
@@ -552,14 +478,11 @@ const MessagesView = () => {
               </button>
             </div>
 
-            {/* Contextual hint bar */}
             <div style={{
-              margin: '0 16px',
-              padding: '8px 14px',
+              margin: '0 16px', padding: '8px 14px',
               background: isBroadcastChannel ? 'rgba(108,92,231,0.07)' : 'var(--bg-hover)',
               border: isBroadcastChannel ? '1px solid rgba(108,92,231,0.2)' : '1px solid var(--border-color)',
-              borderRadius: '10px',
-              fontSize: '0.75rem', color: 'var(--text-muted)',
+              borderRadius: '10px', fontSize: '0.75rem', color: 'var(--text-muted)',
               display: 'flex', gap: '8px', alignItems: 'center',
             }}>
               {isBroadcastChannel ? (
@@ -570,7 +493,6 @@ const MessagesView = () => {
               )}
             </div>
 
-            {/* Messages */}
             <div className="chat-messages" style={{ paddingTop: '12px' }}>
               {msgLoading ? (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '8px', color: 'var(--text-muted)' }}>
@@ -580,7 +502,6 @@ const MessagesView = () => {
               <div ref={bottomRef} />
             </div>
 
-            {/* Error */}
             {error && (
               <div style={{
                 margin: '0 16px', padding: '8px 14px',
@@ -592,7 +513,6 @@ const MessagesView = () => {
               </div>
             )}
 
-            {/* Input */}
             <div className="chat-input-row">
               <textarea
                 className="chat-input"
@@ -632,4 +552,4 @@ const MessagesView = () => {
   );
 };
 
-export default MessagesView;
+export default AdminMessagesView;

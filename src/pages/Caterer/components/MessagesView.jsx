@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { parseTemplateMessage } from '../../../utils/messageTemplates';
 import { Send, MessageSquareDashed, Loader2, Radio, AlertCircle, RefreshCw } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
@@ -55,9 +56,9 @@ const DateSep = ({ ts }) => (
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 const MessagesView = () => {
-  const [catererId,  setCatererId]  = useState(null);      // current caterer's UUID
-  const [adminIdSet, setAdminIdSet] = useState(new Set()); // all admin UUIDs
-  const [admins,     setAdmins]     = useState([]);        // admin list for sidebar
+  const [catererId,  setCatererId]  = useState(null);
+  const [adminIdSet, setAdminIdSet] = useState(new Set());
+  const [admins,     setAdmins]     = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [selected,   setSelected]   = useState(null);
   const [messages,   setMessages]   = useState([]);
@@ -101,15 +102,6 @@ const MessagesView = () => {
 
   /* ══════════════════════════════════════════
      2. FETCH MESSAGES
-
-     VISIBILITY RULES:
-       sender is ADMIN + reciever_id = null        → admin broadcast to all caterers → VISIBLE (received)
-       sender is ADMIN + reciever_id = myCatererId → admin direct to me              → VISIBLE (received)
-       sender is ADMIN + reciever_id = other       → not for me                      → NOT VISIBLE
-
-       sender is ME   + reciever_id = null         → my broadcast to all admins      → VISIBLE (sent)
-       sender is ME   + reciever_id = adminId      → my direct to that admin         → VISIBLE (sent)
-       sender is ME   + reciever_id = other        → not relevant                    → NOT VISIBLE
   ══════════════════════════════════════════ */
   const fetchMessages = useCallback(async (sel, myId) => {
     if (!sel || !myId) return;
@@ -119,11 +111,6 @@ const MessagesView = () => {
 
     try {
       if (sel.admin_id === BROADCAST_ID) {
-        /*
-          BROADCAST CHANNEL — show all null-receiver messages:
-            • Any admin → null  (admin broadcast to all caterers)
-            • Me        → null  (my broadcast to all admins)
-        */
         const { data, error: e } = await supabase
           .from('messages')
           .select('id, sender_id, reciever_id, message, message_time')
@@ -134,48 +121,13 @@ const MessagesView = () => {
         setMessages(data || []);
 
       } else {
-        /*
-          DIRECT CHANNEL with a specific admin.
-          4 separate queries:
-            A. this admin → me      (direct)
-            B. me → this admin      (direct)
-            C. this admin → null    (admin broadcast to all caterers)
-            D. me → null            (my broadcast to all admins)
-        */
         const adminId = sel.admin_id;
 
         const [aToMe, meToA, adminBcast, myBcast] = await Promise.all([
-          // A: this admin → me (direct)
-          supabase
-            .from('messages')
-            .select('id, sender_id, reciever_id, message, message_time')
-            .eq('sender_id', adminId)
-            .eq('reciever_id', myId)
-            .order('message_time', { ascending: true }),
-
-          // B: me → this admin (direct)
-          supabase
-            .from('messages')
-            .select('id, sender_id, reciever_id, message, message_time')
-            .eq('sender_id', myId)
-            .eq('reciever_id', adminId)
-            .order('message_time', { ascending: true }),
-
-          // C: this admin → null (admin broadcast to all caterers)
-          supabase
-            .from('messages')
-            .select('id, sender_id, reciever_id, message, message_time')
-            .eq('sender_id', adminId)
-            .is('reciever_id', null)
-            .order('message_time', { ascending: true }),
-
-          // D: me → null (my broadcast to all admins)
-          supabase
-            .from('messages')
-            .select('id, sender_id, reciever_id, message, message_time')
-            .eq('sender_id', myId)
-            .is('reciever_id', null)
-            .order('message_time', { ascending: true }),
+          supabase.from('messages').select('id, sender_id, reciever_id, message, message_time').eq('sender_id', adminId).eq('reciever_id', myId).order('message_time', { ascending: true }),
+          supabase.from('messages').select('id, sender_id, reciever_id, message, message_time').eq('sender_id', myId).eq('reciever_id', adminId).order('message_time', { ascending: true }),
+          supabase.from('messages').select('id, sender_id, reciever_id, message, message_time').eq('sender_id', adminId).is('reciever_id', null).order('message_time', { ascending: true }),
+          supabase.from('messages').select('id, sender_id, reciever_id, message, message_time').eq('sender_id', myId).is('reciever_id', null).order('message_time', { ascending: true }),
         ]);
 
         if (aToMe.error)      throw aToMe.error;
@@ -228,27 +180,19 @@ const MessagesView = () => {
           let relevant = false;
 
           if (isBcastCh) {
-            // Broadcast channel: any null-receiver message
             relevant = isBcast;
           } else {
-            // A: this admin → me (direct)
             const adminToMe  = senderIsAdmin && msg.sender_id === selAdminId && msg.reciever_id === catererId;
-            // B: me → this admin (direct)
             const meToAdmin  = senderIsMe && msg.reciever_id === selAdminId;
-            // C: this admin's broadcast to all caterers
             const adminBcast = senderIsAdmin && msg.sender_id === selAdminId && isBcast;
-            // D: my broadcast to all admins
             const myBcast    = senderIsMe && isBcast;
-
             relevant = adminToMe || meToAdmin || adminBcast || myBcast;
           }
 
           if (relevant) {
             setMessages(prev => {
               if (prev.find(m => m.id === msg.id)) return prev;
-              return [...prev, msg].sort(
-                (a, b) => new Date(a.message_time) - new Date(b.message_time)
-              );
+              return [...prev, msg].sort((a, b) => new Date(a.message_time) - new Date(b.message_time));
             });
           }
         }
@@ -273,9 +217,6 @@ const MessagesView = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  /* ══════════════════════════════════════════
-     6. SELECT CHANNEL
-  ══════════════════════════════════════════ */
   const selectChannel = (item) => {
     setSelected(item);
     setInput('');
@@ -284,8 +225,6 @@ const MessagesView = () => {
 
   /* ══════════════════════════════════════════
      7. SEND
-       Direct to admin       → reciever_id = admin.admin_id
-       Broadcast to admins   → reciever_id = null
   ══════════════════════════════════════════ */
   const sendMessage = async () => {
     const text = input.trim();
@@ -302,7 +241,6 @@ const MessagesView = () => {
       message_time: new Date().toISOString(),
     };
 
-    // Optimistic insert
     const tempId = `temp-${Date.now()}`;
     setMessages(prev => [...prev, { id: tempId, ...payload }]);
     setInput('');
@@ -331,17 +269,6 @@ const MessagesView = () => {
 
   /* ══════════════════════════════════════════
      8. RENDER MESSAGES
-
-     PER-MESSAGE role logic:
-       sender_id in adminIdSet   → ADMIN sent  → LEFT  (received)
-       sender_id === catererId   → I sent       → RIGHT (sent)
-       reciever_id === null      → broadcast
-
-     Colour scheme:
-       My direct msg      → orange gradient  (right)
-       My broadcast       → purple gradient  (right)
-       Admin direct       → neutral bg-hover (left)
-       Admin broadcast    → green tint       (left)
   ══════════════════════════════════════════ */
   const isBroadcastChannel = selected?.admin_id === BROADCAST_ID;
 
@@ -374,16 +301,13 @@ const MessagesView = () => {
       const senderIsMe    = msg.sender_id === catererId || msg.sender_id?.startsWith('temp-');
       const isBcast       = msg.reciever_id === null;
 
-      // I sent it → right. Admin sent it → left.
       const isSent = senderIsMe;
 
-      // Date separator
       if (!lastDate || !isSameDay(lastDate, ts)) {
         items.push(<DateSep key={`sep-${i}`} ts={ts} />);
         lastDate = ts;
       }
 
-      // Sender label
       let senderLabel = null;
       if (isSent && isBcast) {
         senderLabel = 'You · Broadcast to all admins';
@@ -419,13 +343,14 @@ const MessagesView = () => {
             borderRadius: isSent ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
             fontSize: '0.875rem',
             lineHeight: 1.5,
+            whiteSpace: 'pre-wrap', 
             background: isSent
               ? (isBcast
-                  ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)'  // my broadcast → purple
-                  : 'linear-gradient(135deg, #e67e22, #f39c12)') // my direct    → orange
+                  ? 'linear-gradient(135deg, #6c5ce7, #a29bfe)'  
+                  : 'linear-gradient(135deg, #e67e22, #f39c12)') 
               : (isBcast
-                  ? 'rgba(46,204,113,0.12)'  // admin broadcast → green tint
-                  : 'var(--bg-hover)'),       // admin direct    → neutral
+                  ? 'rgba(46,204,113,0.12)'  
+                  : 'var(--bg-hover)'),       
             color: isSent ? '#fff' : 'var(--text-main)',
             border: isSent
               ? 'none'
@@ -434,7 +359,7 @@ const MessagesView = () => {
                   : '1px solid var(--border-color)'),
             boxShadow: isSent ? '0 2px 8px rgba(0,0,0,0.12)' : 'none',
           }}>
-            {msg.message}
+            {parseTemplateMessage(msg.message)}
             <div style={{
               fontSize: '0.65rem', marginTop: '5px',
               textAlign: 'right',
@@ -470,7 +395,6 @@ const MessagesView = () => {
         <div className="messages-sidebar-header">Conversations</div>
         <div className="caterer-list">
 
-          {/* Broadcast — pinned at top */}
           <div
             className={`caterer-item ${selected?.admin_id === BROADCAST_ID ? 'active' : ''}`}
             onClick={() => selectChannel({ admin_id: BROADCAST_ID, name: 'Broadcast — All Admins' })}
@@ -494,7 +418,6 @@ const MessagesView = () => {
             </div>
           </div>
 
-          {/* Individual admins */}
           {admins.length === 0
             ? (
               <div className="admin-empty" style={{ padding: '20px 10px' }}>
@@ -531,7 +454,6 @@ const MessagesView = () => {
           </div>
         ) : (
           <>
-            {/* Header */}
             <div className="chat-header">
               {isBroadcastChannel ? (
                 <div style={{
@@ -577,7 +499,6 @@ const MessagesView = () => {
               </button>
             </div>
 
-            {/* Hint bar */}
             <div style={{
               margin: '0 16px',
               padding: '8px 14px',
@@ -602,7 +523,6 @@ const MessagesView = () => {
               )}
             </div>
 
-            {/* Messages */}
             <div className="chat-messages" style={{ paddingTop: '12px' }}>
               {msgLoading ? (
                 <div style={{
@@ -616,7 +536,6 @@ const MessagesView = () => {
               <div ref={bottomRef} />
             </div>
 
-            {/* Error */}
             {error && (
               <div style={{
                 margin: '0 16px', padding: '8px 14px',
@@ -630,7 +549,6 @@ const MessagesView = () => {
               </div>
             )}
 
-            {/* Input */}
             <div className="chat-input-row">
               <textarea
                 className="chat-input"

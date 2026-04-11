@@ -602,6 +602,16 @@ table.admin-table {
   gap: 10px;
 }
 
+.rc-too-early {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border: 1px solid var(--border-color);
+}
+
 /* Toast Overrides */
 .toast-wrapper {
   position: fixed;

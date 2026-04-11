@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { getTemplates } from '../../../utils/messageTemplates';
 import {
   ChevronLeft, ChevronRight, X, Coffee, Utensils, Moon,
   Loader2, MessageSquare, Send, CheckCircle, AlertCircle
@@ -38,137 +39,6 @@ const MEAL_ICONS = {
   breakfast: <Coffee size={14} color="#e67e22" />,
   lunch:     <Utensils size={14} color="#3498db" />,
   dinner:    <Moon size={14} color="#9b59b6" />,
-};
-
-/* ─────────────────────────────────────────────────────────
-   MESSAGE TEMPLATES
-───────────────────────────────────────────────────────── */
-const getTemplates = ({ mealType, reported, catererName, mealData, dateStr }) => {
-  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-  const mealCap = cap(mealType);
-  const caterer = catererName || 'your team';
-
-  if (!reported) {
-    return [
-      {
-        id: 'unreported_reminder',
-        label: 'Reminder — Not Reported',
-        body:
-`Hi ${caterer},
-
-This is a reminder that the waste report for ${mealCap} on ${dateStr} has not been submitted yet.
-
-Timely reporting helps us track food waste accurately and plan meals better. Please log the waste data as soon as possible — it only takes a few minutes.
-
-Date: ${dateStr}
-Meal: ${mealCap}
-Status: Not Reported
-
-Kindly ensure this is filled in at the earliest. Thank you for your cooperation.
-
-Regards,
-Mess Admin`,
-      },
-      {
-        id: 'unreported_urgent',
-        label: 'Urgent — Overdue Report',
-        body:
-`Dear ${caterer},
-
-We noticed that the waste report for ${mealCap} on ${dateStr} is still pending. This is an urgent follow-up as missing reports affect our monthly waste analytics.
-
-Date: ${dateStr}
-Meal: ${mealCap}
-Status: Overdue
-
-Please submit the waste data immediately. If there was an issue logging it, feel free to reach out and we'll assist you.
-
-Thank you,
-Mess Admin`,
-      },
-    ];
-  }
-
-  const total = mealData?.total?.toFixed(1) ?? '—';
-  const plate = Number(mealData?.plate_waste ?? 0).toFixed(1);
-  const uncooked = Number(mealData?.kitchen_uncooked ?? 0).toFixed(1);
-  const cooked = Number(mealData?.kitchen_cooked ?? 0).toFixed(1);
-
-  const wasteBreakdown = `Date: ${dateStr}
-Meal: ${mealCap}
-Total Waste: ${total} kg
-   • Plate Waste: ${plate} kg
-   • Uncooked (Kitchen): ${uncooked} kg
-   • Cooked (Kitchen): ${cooked} kg`;
-
-  return [
-    {
-      id: 'high_waste',
-      label: 'High Waste — Needs Attention',
-      body:
-`Hi ${caterer},
-
-After reviewing the waste report for ${mealCap} on ${dateStr}, we noticed the waste levels are higher than expected. We'd like to work together to bring this down.
-
-${wasteBreakdown}
-
-We encourage you to review portion sizes, preparation quantities, and identify any recurring patterns. Reducing waste benefits both costs and sustainability.
-
-Please share your action plan at your earliest convenience.
-
-Regards,
-Mess Admin`,
-    },
-    {
-      id: 'good_job',
-      label: 'Great Work — Low Waste',
-      body:
-`Hi ${caterer},
-
-We reviewed the waste report for ${mealCap} on ${dateStr} and are pleased to see the waste levels are well-managed. Great job!
-
-${wasteBreakdown}
-
-Keep up the excellent work. Consistent low waste reflects efficient planning and preparation. Your efforts are appreciated.
-
-Regards,
-Mess Admin`,
-    },
-    {
-      id: 'feedback_positive',
-      label: 'Students Feedback — Positive',
-      body:
-`Dear ${caterer},
-
-We're happy to share that students have given positive feedback for ${mealCap} on ${dateStr}. The meal was well-received and students appreciated the quality and taste.
-
-${wasteBreakdown}
-
-This encouraging response from students reflects the effort your team puts in. Thank you for consistently delivering quality meals.
-
-Keep it up!
-
-Regards,
-Mess Admin`,
-    },
-    {
-      id: 'feedback_negative',
-      label: 'Students Feedback — Needs Improvement',
-      body:
-`Hi ${caterer},
-
-We've received feedback from students regarding ${mealCap} on ${dateStr} indicating there is room for improvement. We want to address this proactively.
-
-${wasteBreakdown}
-
-Common concerns raised include quality, taste, or portion adequacy. We'd appreciate it if you could look into this and make the necessary adjustments going forward.
-
-Please connect with us if you'd like to discuss further.
-
-Regards,
-Mess Admin`,
-    },
-  ];
 };
 
 /* ─────────────────────────────────────────────────────────
@@ -225,11 +95,23 @@ const MessagePanel = ({
   const handleSend = async () => {
     if (!body.trim() || !adminId || !catererId) return;
     setSending(true);
+
+    let finalMessage = body.trim();
+    const activeTemplate = templates.find(t => t.id === selected);
+
+    if (activeTemplate && finalMessage === activeTemplate.body.trim()) {
+      const templateData = {
+        id: activeTemplate.id,
+        args: { mealType, reported, catererName, mealData, dateStr }
+      };
+      finalMessage = `[TEMPLATE]:${JSON.stringify(templateData)}`;
+    }
+
     try {
       const { error } = await supabase.from('messages').insert({
         sender_id:    adminId,
         reciever_id:  catererId,
-        message:      body.trim(),
+        message:      finalMessage,
         message_time: new Date().toISOString(),
       });
       if (error) throw error;
@@ -423,6 +305,14 @@ const ReportCalendarView = () => {
     setMsgPanel(null);
   };
 
+  const isFutureDay = useMemo(() => {
+    if (!selectedDay) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const selectedDateObj = new Date(year, month, selectedDay.day);
+    return selectedDateObj > today;
+  }, [selectedDay, year, month]);
+
   return (
     <div className="calendar-layout rc-container">
 
@@ -470,26 +360,32 @@ const ReportCalendarView = () => {
                               P {Number(meal.plate_waste).toFixed(1)} · U {Number(meal.kitchen_uncooked).toFixed(1)} · C {Number(meal.kitchen_cooked).toFixed(1)}
                             </div>
                           </div>
+                        ) : isFutureDay ? (
+                          <span className="rc-too-early">Too early</span>
                         ) : (
                           <span className="rc-not-reported">Not reported</span>
                         )}
 
-                        <button
-                          onClick={() => setMsgPanel(isPanelOpen ? null : { mealType: type, reported, mealData: meal || null })}
-                          title={`Message caterer about ${type}`}
-                          className={`rc-msg-btn ${isPanelOpen ? 'active' : ''}`}
-                        >
-                          <MessageSquare size={13} />
-                        </button>
+                        {!(isFutureDay && !reported) && (
+                          <button
+                            onClick={() => setMsgPanel(isPanelOpen ? null : { mealType: type, reported, mealData: meal || null })}
+                            title={`Message caterer about ${type}`}
+                            className={`rc-msg-btn ${isPanelOpen ? 'active' : ''}`}
+                          >
+                            <MessageSquare size={13} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
                 );
               })}
 
-              <p className="rc-footer-hint">
-                Click <MessageSquare size={11} /> next to a meal to message the caterer.
-              </p>
+              {!(isFutureDay && selectedDay.mealCount === 0) && (
+                <p className="rc-footer-hint">
+                  Click <MessageSquare size={11} /> next to a meal to message the caterer.
+                </p>
+              )}
             </div>
 
             {msgPanel && (

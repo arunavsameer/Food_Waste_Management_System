@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import {
-  Loader2, MessageSquare, RefreshCw, Filter,
-  Calendar, TrendingUp, TrendingDown, ThumbsUp, ThumbsDown
+  Loader2, MessageSquare, RefreshCw,
+  TrendingUp, TrendingDown, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
@@ -189,96 +189,63 @@ const AdminFeedbackView = () => {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:'20px' }}>
 
-      {/* ══ CONTEXT BANNER ══ */}
-      <div style={{
-        display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap',
-        background:'rgba(46,204,113,0.07)', border:'1px solid rgba(46,204,113,0.2)',
-        borderRadius:'12px', padding:'11px 18px',
-      }}>
-        <Calendar size={16} color="var(--primary-green)"/>
-        <span style={{ fontSize:'0.82rem', fontWeight:700, color:'var(--text-main)' }}>Viewing:</span>
-        <span style={{ fontSize:'0.82rem', fontWeight:800, color:'var(--primary-green)' }}>{dateRange.label}</span>
-        {filterMess !== 'all' && (
-          <><span style={{ color:'var(--border-color)' }}>·</span>
-          <span style={{ fontSize:'0.82rem', fontWeight:700, color:'var(--primary-blue)' }}>{filterMess}</span></>
-        )}
-        {filterMeal !== 'all' && (
-          <><span style={{ color:'var(--border-color)' }}>·</span>
-          <span style={{ fontSize:'0.82rem', fontWeight:700, color:'var(--primary-blue)', textTransform:'capitalize' }}>{filterMeal} only</span></>
-        )}
-        <span style={{ marginLeft:'auto', fontSize:'0.75rem', color:'var(--text-muted)' }}>
-          {stats.totalEntries} entr{stats.totalEntries !== 1 ? 'ies' : 'y'} · {stats.totalResponses.toLocaleString()} responses
-        </span>
-      </div>
-
       {/* ══ FILTER BAR ══ */}
-      <div style={{
-        display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap',
-        background:'var(--bg-card)', border:'1px solid var(--border-color)',
-        borderRadius:'14px', padding:'14px 18px', boxShadow:'var(--shadow)',
-      }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'6px', color:'var(--text-muted)', fontWeight:700, fontSize:'0.78rem', marginRight:'4px' }}>
-          <Filter size={14}/> FILTERS
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'10px' }}>
+
+        {/* Left — date context */}
+        <p style={{ margin:0, fontSize:'0.875rem', fontWeight:700, color:'var(--text-main)' }}>
+          {dateRange.label}
+          {filterMess !== 'all' && <span style={{ color:'var(--text-muted)', fontWeight:600 }}> · {filterMess}</span>}
+          {filterMeal !== 'all' && <span style={{ color:'var(--text-muted)', fontWeight:600, textTransform:'capitalize' }}> · {filterMeal}</span>}
+        </p>
+
+        {/* Right — all controls */}
+        <div style={{ display:'flex', alignItems:'center', gap:'8px', flexWrap:'wrap' }}>
+          <div style={{ display:'flex', gap:3, background:'var(--bg-hover)', borderRadius:10, padding:3, border:'1px solid var(--border-color)' }}>
+            {TIME_PRESETS.map(p => (
+              <button key={p.key} onClick={() => setTimePreset(p.key)} style={{
+                padding:'5px 10px', borderRadius:7, border:'none', cursor:'pointer',
+                fontSize:'0.75rem', fontWeight:700, transition:'all 0.15s', whiteSpace:'nowrap',
+                background: timePreset === p.key ? 'var(--bg-card)' : 'transparent',
+                color:       timePreset === p.key ? 'var(--text-main)' : 'var(--text-muted)',
+                boxShadow:   timePreset === p.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+              }}>{p.label}</button>
+            ))}
+          </div>
+
+          <select value={filterMess} onChange={e => setFilterMess(e.target.value)}
+            className="admin-filter-select"
+            style={{
+              fontSize:'0.78rem', fontWeight:600, padding:'6px 32px 6px 10px',
+              border:`1px solid ${filterMess !== 'all' ? 'var(--primary-green)' : 'var(--border-color)'}`,
+              background: filterMess !== 'all' ? 'rgba(46,204,113,0.07)' : 'var(--bg-input)',
+            }}>
+            <option value="all">All Messes</option>
+            {caterers.map(c => <option key={c.caterer_id} value={c.name}>{c.name}</option>)}
+          </select>
+
+          <div style={{ display:'flex', gap:3, background:'var(--bg-hover)', borderRadius:10, padding:3, border:'1px solid var(--border-color)' }}>
+            {MEAL_TYPES.map(m => (
+              <button key={m} onClick={() => setFilterMeal(m)} style={{
+                padding:'5px 10px', borderRadius:7, border:'none', cursor:'pointer',
+                fontSize:'0.75rem', fontWeight:700, textTransform:'capitalize', transition:'all 0.15s', whiteSpace:'nowrap',
+                background: filterMeal === m ? 'var(--bg-card)' : 'transparent',
+                color:       filterMeal === m ? 'var(--text-main)' : 'var(--text-muted)',
+                boxShadow:   filterMeal === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+              }}>{m === 'all' ? 'All Meals' : m}</button>
+            ))}
+          </div>
+
+          <button className="icon-btn" onClick={fetchAll} title="Refresh">
+            <RefreshCw size={14} className={loading ? 'spin' : ''}/>
+          </button>
+          {filtersActive && (
+            <button onClick={() => { setFilterMess('all'); setFilterMeal('all'); setTimePreset('month'); setSearch(''); }} style={{
+              padding:'6px 10px', borderRadius:8, border:'1px solid var(--border-color)',
+              background:'transparent', color:'var(--danger)', fontSize:'0.75rem', fontWeight:700, cursor:'pointer', whiteSpace:'nowrap',
+            }}>✕ Reset</button>
+          )}
         </div>
-
-        {/* Time presets */}
-        <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-          {TIME_PRESETS.map(p => (
-            <button key={p.key} onClick={() => setTimePreset(p.key)} style={{
-              padding:'7px 12px', borderRadius:'8px', border:'none', cursor:'pointer',
-              fontSize:'0.78rem', fontWeight:700,
-              background: timePreset === p.key ? 'var(--primary-blue)' : 'var(--bg-hover)',
-              color:       timePreset === p.key ? '#fff' : 'var(--text-muted)',
-              transition:'all 0.15s',
-            }}>{p.label}</button>
-          ))}
-        </div>
-
-        <div style={{ width:'1px', height:'24px', background:'var(--border-color)' }}/>
-
-        {/* Mess */}
-        <select value={filterMess} onChange={e => setFilterMess(e.target.value)} style={{
-          padding:'8px 34px 8px 12px', borderRadius:'10px', outline:'none',
-          fontFamily:'inherit', fontWeight:600, appearance:'none',
-          border:`1px solid ${filterMess !== 'all' ? 'var(--primary-green)' : 'var(--border-color)'}`,
-          background: filterMess !== 'all' ? 'rgba(46,204,113,0.08)' : 'var(--bg-input)',
-          color:'var(--text-main)', fontSize:'0.875rem', cursor:'pointer',
-          backgroundImage:"url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232ecc71' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e\")",
-          backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center', backgroundSize:'14px',
-        }}>
-          <option value="all">All Messes</option>
-          {caterers.map(c => <option key={c.caterer_id} value={c.name}>{c.name}</option>)}
-        </select>
-
-        {/* Meal tabs */}
-        <div style={{ display:'flex', gap:'5px' }}>
-          {MEAL_TYPES.map(m => (
-            <button key={m} onClick={() => setFilterMeal(m)} style={{
-              padding:'7px 13px', borderRadius:'8px', border:'none', cursor:'pointer',
-              fontSize:'0.78rem', fontWeight:700, textTransform:'capitalize',
-              background: filterMeal === m ? 'var(--primary-green)' : 'var(--bg-hover)',
-              color:       filterMeal === m ? '#fff' : 'var(--text-muted)',
-              transition:'all 0.15s',
-            }}>{m === 'all' ? 'All Meals' : m}</button>
-          ))}
-        </div>
-
-        <input
-          className="admin-search"
-          placeholder="Search mess…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ marginLeft:'auto' }}
-        />
-        <button className="icon-btn" onClick={fetchAll} title="Refresh">
-          <RefreshCw size={15} className={loading ? 'spin' : ''}/>
-        </button>
-        {filtersActive && (
-          <button onClick={() => { setFilterMess('all'); setFilterMeal('all'); setTimePreset('month'); setSearch(''); }} style={{
-            padding:'6px 12px', borderRadius:'8px', border:'1px solid var(--border-color)',
-            background:'transparent', color:'var(--danger)', fontSize:'0.78rem', fontWeight:600, cursor:'pointer',
-          }}>✕ Reset</button>
-        )}
       </div>
 
       {/* ══ STAT CARDS ══ */}

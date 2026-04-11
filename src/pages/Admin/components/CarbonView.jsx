@@ -142,7 +142,7 @@ const CarbonView = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: 800 }}>
-            🌍 Carbon Insights
+            Carbon Insights
           </h2>
           <p style={{ margin: '3px 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
             Based on waste-per-meal — comparisons are meaningful even with few entries

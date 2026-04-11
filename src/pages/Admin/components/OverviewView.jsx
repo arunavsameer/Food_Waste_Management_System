@@ -1,164 +1,277 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../../lib/supabase';
 import {
-  Loader2, Users, Trash2, UtensilsCrossed,
-  TrendingDown, TrendingUp, Filter, RefreshCw, Calendar
+  Loader2, RefreshCw, Trash2, FileText, Star, Leaf,
+  TrendingDown, TrendingUp, ChevronLeft, ChevronRight,
+  UtensilsCrossed, BarChart3
 } from 'lucide-react';
 
 /* ─────────────────────────────────────────────
    CONSTANTS
 ───────────────────────────────────────────── */
-const MEAL_TYPES = ['all', 'breakfast', 'lunch', 'dinner'];
-
-const WASTE_CATS = [
-  { key: 'plate_waste',      label: 'Plate Waste',      color: '#e74c3c', light: 'rgba(231,76,60,0.13)'  },
-  { key: 'kitchen_uncooked', label: 'Kitchen Uncooked', color: '#f39c12', light: 'rgba(243,156,18,0.13)' },
-  { key: 'kitchen_cooked',   label: 'Kitchen Cooked',   color: '#6c5ce7', light: 'rgba(108,92,231,0.13)' },
-];
-
-/* date helpers */
-const today      = () => new Date();
-const startOfDay = (d) => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
-const fmtDate    = (d) => new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short', year:'numeric' });
-const fmtDateShort = (d) => new Date(d).toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
-
+const CO2_PER_KG_WASTE = 2.5;
 const TIME_PRESETS = [
-  { key: 'today',       label: 'Today'         },
-  { key: 'week',        label: 'This Week'      },
-  { key: 'month',       label: 'This Month'     },
-  { key: 'last_month',  label: 'Last Month'     },
-  { key: 'all',         label: 'All Time'       },
+  { key: 'today',      label: 'Today'      },
+  { key: 'week',       label: 'This Week'  },
+  { key: 'month',      label: 'This Month' },
+  { key: 'last_month', label: 'Last Month' },
+  { key: 'all',        label: 'All Time'   },
 ];
+
+const fmtDate = (d) =>
+  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+const fmtShort = (d) =>
+  new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 
 function getDateRange(preset) {
-  const now = today();
-  const sd  = startOfDay(now);
+  const now  = new Date();
+  const sd   = new Date(now); sd.setHours(0, 0, 0, 0);
+  let from, to, prevFrom, prevTo, label;
+
   switch (preset) {
-    case 'today':      return { from: sd, to: now, label: `Today, ${fmtDate(now)}` };
+    case 'today':
+      from = sd; to = now; label = `Today, ${fmtDate(now)}`;
+      prevFrom = new Date(sd); prevFrom.setDate(sd.getDate() - 1);
+      prevTo   = new Date(sd); prevTo.setMilliseconds(-1);
+      break;
     case 'week': {
       const mon = new Date(sd);
       mon.setDate(sd.getDate() - sd.getDay() + (sd.getDay() === 0 ? -6 : 1));
-      return { from: mon, to: now, label: `This week (${fmtDateShort(mon)} – ${fmtDateShort(now)})` };
+      from = mon; to = now;
+      label = `${fmtShort(mon)} – ${fmtShort(now)}`;
+      prevFrom = new Date(mon); prevFrom.setDate(mon.getDate() - 7);
+      prevTo   = new Date(mon); prevTo.setMilliseconds(-1);
+      break;
     }
     case 'month': {
-      const fm = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: fm, to: now, label: `${now.toLocaleDateString('en-IN', { month:'long', year:'numeric' })}` };
+      from = new Date(now.getFullYear(), now.getMonth(), 1); to = now;
+      label = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      prevFrom = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      prevTo   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      break;
     }
     case 'last_month': {
-      const lm  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const lme = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { from: lm, to: lme, label: `${lm.toLocaleDateString('en-IN', { month:'long', year:'numeric' })}` };
+      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      to   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+      label = from.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+      prevFrom = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+      prevTo   = new Date(now.getFullYear(), now.getMonth() - 1, 0, 23, 59, 59);
+      break;
     }
-    default: return { from: null, to: null, label: 'All time' };
+    default:
+      from = null; to = null; label = 'All Time';
+      prevFrom = null; prevTo = null;
   }
+  return { from, to, prevFrom, prevTo, label };
 }
 
 /* ─────────────────────────────────────────────
-   SUB-COMPONENTS
+   SMALL HELPERS
 ───────────────────────────────────────────── */
-const GroupedBar = ({ row, max, animate }) => (
-  <div style={{ marginBottom: '20px' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '7px' }}>
-      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-main)' }}>{row.name}</span>
-      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>{row.total.toFixed(1)} kg total</span>
-    </div>
-    {WASTE_CATS.map(cat => {
-      const val = row[cat.key] || 0;
-      const w   = max > 0 ? (val / max) * 100 : 0;
-      return (
-        <div key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
-          <div style={{ width: 10, height: 10, borderRadius: '3px', background: cat.color, flexShrink: 0 }} />
-          <span style={{ width: '120px', fontSize: '0.72rem', color: 'var(--text-muted)', flexShrink: 0 }}>{cat.label}</span>
-          <div style={{ flex: 1, height: '10px', background: 'var(--border-color)', borderRadius: '5px', overflow: 'hidden' }}>
-            <div style={{
-              height: '10px', borderRadius: '5px', background: cat.color,
-              width: animate ? `${w}%` : '0%',
-              transition: 'width 0.7s cubic-bezier(0.4,0,0.2,1)',
-            }} />
-          </div>
-          <span style={{ width: '48px', fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)', textAlign: 'right' }}>
-            {val.toFixed(1)}
-          </span>
-        </div>
-      );
-    })}
-  </div>
-);
-
-const DonutChart = ({ data, total }) => {
-  const R = 68, CX = 88, CY = 88, SW = 20;
-  const circ = 2 * Math.PI * R;
-  let offset = 0;
-  const slices = data.map(d => {
-    const dash = total > 0 ? (d.value / total) * circ : 0;
-    const sl   = { ...d, dash, gap: circ - dash, offset };
-    offset += dash;
-    return sl;
-  });
+const Trend = ({ pct, inverse = false }) => {
+  if (pct === null || isNaN(pct) || Math.abs(pct) < 0.5) {
+    return <span style={trendStyle('#8899aa')}>— same</span>;
+  }
+  const good  = inverse ? pct < 0 : pct > 0;
+  const color = good ? '#2ecc71' : '#e74c3c';
+  const Icon  = pct > 0 ? TrendingUp : TrendingDown;
   return (
-    <svg viewBox="0 0 176 176" width="176" height="176" style={{ flexShrink: 0 }}>
-      <circle cx={CX} cy={CY} r={R} fill="none" stroke="var(--border-color)" strokeWidth={SW} />
-      {slices.map(s => (
-        <circle key={s.key} cx={CX} cy={CY} r={R} fill="none"
-          stroke={s.color} strokeWidth={SW}
-          strokeDasharray={`${s.dash} ${s.gap}`}
-          strokeDashoffset={-s.offset + circ / 4}
-          style={{ transition: 'stroke-dasharray 0.6s ease' }}
-        />
-      ))}
-      <text x={CX} y={CY - 7} textAnchor="middle" fontSize="14" fontWeight="800" fill="var(--text-main)">{total.toFixed(0)}</text>
-      <text x={CX} y={CY + 11} textAnchor="middle" fontSize="9" fill="var(--text-muted)">kg total</text>
-    </svg>
+    <span style={trendStyle(color)}>
+      <Icon size={11} strokeWidth={3} />
+      {Math.abs(pct).toFixed(1)}%
+    </span>
   );
 };
 
-const StackedBar = ({ row }) => (
-  <div style={{ marginBottom: '13px' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-      <span style={{ fontSize: '0.83rem', fontWeight: 600, color: 'var(--text-main)' }}>{row.name}</span>
-      <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{row.total.toFixed(1)} kg</span>
+const trendStyle = (color) => ({
+  display: 'inline-flex', alignItems: 'center', gap: 3,
+  fontSize: '0.71rem', fontWeight: 700, color,
+  background: color + '18', padding: '2px 7px', borderRadius: 99,
+});
+
+const MiniDivider = () => (
+  <div style={{ height: 1, background: 'var(--border-color)', margin: '10px 0' }} />
+);
+
+/* ─────────────────────────────────────────────
+   METRIC CARD
+───────────────────────────────────────────── */
+const MetricCard = ({ icon: Icon, accent, label, value, unit, trend, inverseTrend, sub1, sub2 }) => (
+  <div style={cardStyle}>
+    {/* Top row */}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{
+        width: 38, height: 38, borderRadius: 10,
+        background: accent + '18', color: accent,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <Icon size={18} strokeWidth={2.2} />
+      </div>
+      <Trend pct={trend} inverse={inverseTrend} />
     </div>
-    <div style={{ display: 'flex', height: '14px', borderRadius: '7px', overflow: 'hidden', gap: '1px' }}>
-      {WASTE_CATS.map(cat => {
-        const pct = row.total > 0 ? ((row[cat.key] || 0) / row.total) * 100 : 0;
-        return pct > 0 ? (
-          <div key={cat.key} title={`${cat.label}: ${(row[cat.key]||0).toFixed(1)} kg (${pct.toFixed(1)}%)`}
-            style={{ width: `${pct}%`, background: cat.color, cursor: 'default', transition: 'width 0.5s ease' }} />
-        ) : null;
-      })}
+
+    {/* Value */}
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+        {label}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, marginTop: 3 }}>
+        <span style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)', lineHeight: 1 }}>
+          {value}
+        </span>
+        {unit && <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 600 }}>{unit}</span>}
+      </div>
     </div>
-    <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-      {WASTE_CATS.map(cat => {
-        const pct = row.total > 0 ? ((row[cat.key] || 0) / row.total) * 100 : 0;
-        return pct > 3 ? (
-          <span key={cat.key} style={{ fontSize: '0.67rem', color: cat.color, fontWeight: 700 }}>{pct.toFixed(0)}%</span>
-        ) : null;
-      })}
-    </div>
+
+    {/* Sub-stats */}
+    {(sub1 || sub2) && (
+      <>
+        <MiniDivider />
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          {[sub1, sub2].filter(Boolean).map((s, i) => (
+            <div key={i} style={{ flex: 1 }}>
+              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                {s.label}
+              </div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 700, color: s.color || 'var(--text-main)', marginTop: 1 }}>
+                {s.value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
+    )}
   </div>
 );
 
-const MealBar = ({ label, values, max }) => (
-  <div style={{ marginBottom: '18px' }}>
-    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-      <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', textTransform: 'capitalize' }}>{label}</span>
-      <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>{values.reduce((s,v)=>s+v,0).toFixed(1)} kg</span>
-    </div>
-    {WASTE_CATS.map((cat, i) => (
-      <div key={cat.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '5px' }}>
-        <span style={{ width: '120px', fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}>{cat.label}</span>
-        <div style={{ flex: 1, height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
-          <div style={{
-            height: '8px', borderRadius: '4px', background: cat.color,
-            width: max > 0 ? `${(values[i] / max) * 100}%` : '0%',
-            transition: 'width 0.6s ease',
-          }} />
+const cardStyle = {
+  background: 'var(--bg-card)',
+  border: '1px solid var(--border-color)',
+  borderRadius: 16,
+  padding: '18px 20px',
+  boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+  transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+  cursor: 'default',
+  minWidth: 0,
+};
+
+/* ─────────────────────────────────────────────
+   CARBON INSIGHT CARD (wider)
+───────────────────────────────────────────── */
+const CarbonCard = ({ co2kg, creditsTonnes, baseline, avgWaste, reportsCount }) => {
+  const trees = Math.round(co2kg / 21);
+  const hasCredits = creditsTonnes > 0;
+  const aboveBaseline = baseline > 0 && avgWaste > baseline;
+  const barPct = baseline > 0 ? Math.min((avgWaste / (baseline * 1.5)) * 100, 100) : 0;
+  const barColor = avgWaste <= baseline ? '#2ecc71' : '#e74c3c';
+
+  return (
+    <div style={{ ...cardStyle, gridColumn: 'span 2' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+        <div style={{ width: 38, height: 38, borderRadius: 10, background: '#2ecc7118', color: '#2ecc71', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Leaf size={18} strokeWidth={2.2} />
         </div>
-        <span style={{ width: '44px', fontSize: '0.74rem', fontWeight: 700, color: 'var(--text-main)', textAlign: 'right' }}>
-          {values[i].toFixed(1)}
-        </span>
+        <div>
+          <div style={{ fontSize: '0.7rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: 'var(--text-muted)' }}>
+            Carbon Insights
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 1 }}>
+            Based on {reportsCount} waste {reportsCount === 1 ? 'entry' : 'entries'} this period
+          </div>
+        </div>
+        {hasCredits && (
+          <div style={{ marginLeft: 'auto', background: '#2ecc7118', border: '1px solid #2ecc7140', borderRadius: 99, padding: '4px 12px', fontSize: '0.75rem', fontWeight: 800, color: '#2ecc71' }}>
+            🌿 {creditsTonnes.toFixed(3)} credits earned
+          </div>
+        )}
       </div>
-    ))}
+
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+        {/* CO2 block */}
+        <div style={{ flex: '1 1 120px', background: 'var(--bg-hover)', borderRadius: 12, padding: '12px 14px' }}>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>CO₂ Generated</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#e67e22', lineHeight: 1, marginTop: 4 }}>
+            {co2kg.toFixed(1)} <span style={{ fontSize: '0.78rem', fontWeight: 600 }}>kg</span>
+          </div>
+          <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>🌳 {trees} trees/yr to offset</span>
+          </div>
+        </div>
+
+        {/* Baseline bar block */}
+        {baseline > 0 && (
+          <div style={{ flex: '2 1 180px', background: 'var(--bg-hover)', borderRadius: 12, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Waste / Meal vs Baseline
+              </span>
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: barColor }}>
+                {avgWaste.toFixed(2)} kg
+              </span>
+            </div>
+            <div style={{ background: 'var(--border-color)', borderRadius: 99, height: 7, overflow: 'hidden' }}>
+              <div style={{ width: `${barPct}%`, height: '100%', borderRadius: 99, background: barColor, transition: 'width 0.6s ease' }} />
+            </div>
+            <div style={{ fontSize: '0.71rem', marginTop: 5, fontWeight: 600, color: barColor }}>
+              {avgWaste <= baseline
+                ? `✓ ${(baseline - avgWaste).toFixed(2)} kg/meal below baseline`
+                : `✗ ${(avgWaste - baseline).toFixed(2)} kg/meal above baseline`}
+            </div>
+            <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 3 }}>
+              System baseline: {baseline.toFixed(2)} kg/meal (avg of all caterers)
+            </div>
+          </div>
+        )}
+
+        {/* Credits block */}
+        <div style={{
+          flex: '1 1 120px', borderRadius: 12, padding: '12px 14px',
+          background: hasCredits ? '#2ecc7110' : 'var(--bg-hover)',
+          border: hasCredits ? '1px solid #2ecc7130' : '1px solid transparent',
+        }}>
+          <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Credits</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 800, lineHeight: 1, marginTop: 4, color: hasCredits ? '#2ecc71' : 'var(--text-muted)' }}>
+            {creditsTonnes.toFixed(3)}
+          </div>
+          <div style={{ fontSize: '0.72rem', marginTop: 6, color: hasCredits ? '#2ecc71' : 'var(--text-muted)', fontWeight: 600 }}>
+            {hasCredits ? 'tonnes CO₂ saved' : aboveBaseline ? 'reduce waste to earn' : '—'}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─────────────────────────────────────────────
+   MESS SUMMARY ROW
+───────────────────────────────────────────── */
+const MessRow = ({ name, count, total, avgRating, isLast }) => (
+  <div style={{
+    display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0',
+    borderBottom: isLast ? 'none' : '1px solid var(--border-color)',
+  }}>
+    <div style={{
+      width: 32, height: 32, borderRadius: 9, background: 'var(--bg-hover)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    }}>
+      <UtensilsCrossed size={14} color="var(--text-muted)" />
+    </div>
+    <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {name}
+      </div>
+      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 1 }}>
+        {count} {count === 1 ? 'entry' : 'entries'}
+      </div>
+    </div>
+    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+      <div style={{ fontSize: '0.88rem', fontWeight: 800, color: '#e74c3c' }}>{total.toFixed(1)} kg</div>
+      {avgRating > 0 && (
+        <div style={{ fontSize: '0.71rem', color: 'var(--text-muted)', marginTop: 1 }}>
+          ★ {avgRating.toFixed(1)}
+        </div>
+      )}
+    </div>
   </div>
 );
 
@@ -166,426 +279,310 @@ const MealBar = ({ label, values, max }) => (
    MAIN COMPONENT
 ───────────────────────────────────────────── */
 const OverviewView = () => {
+  const [loading, setLoading]       = useState(true);
   const [allReports, setAllReports] = useState([]);
-  const [caterers,   setCaterers]   = useState([]);
-  const [profiles,   setProfiles]   = useState({ students: 0, caterers: 0 });
-  const [loading,    setLoading]    = useState(true);
-  const [animate,    setAnimate]    = useState(false);
-
-  const [filterMess,   setFilterMess]   = useState('all');
-  const [filterMeal,   setFilterMeal]   = useState('all');
-  const [timePreset,   setTimePreset]   = useState('month');
+  const [allFeedback, setAllFeedback] = useState([]);
+  const [caterers, setCaterers]     = useState([]);
+  const [filterMess, setFilterMess] = useState('all');
+  const [timePreset, setTimePreset] = useState('month');
 
   const dateRange = useMemo(() => getDateRange(timePreset), [timePreset]);
 
   const fetchAll = async () => {
-    setLoading(true); setAnimate(false);
+    setLoading(true);
     try {
-      const [{ count: sc }, { count: cc }, { data: reports }, { data: cats }] = await Promise.all([
-        supabase.from('profiles').select('*', { count:'exact', head:true }).eq('role','student'),
-        supabase.from('profiles').select('*', { count:'exact', head:true }).eq('role','caterer'),
-        supabase.from('waste_reports')
-          .select('report_id,report_date,meal_type,plate_waste,kitchen_uncooked,kitchen_cooked,caterers(name)')
-          .order('report_date', { ascending: false }),
-        supabase.from('caterers').select('caterer_id,name').order('name'),
+      const [{ data: reports }, { data: feedbacks }, { data: cats }] = await Promise.all([
+        supabase.from('waste_reports').select('report_date, meal_type, plate_waste, kitchen_uncooked, kitchen_cooked, caterers(name)'),
+        supabase.from('feedback').select('date, rating, meal_type, caterers(name)'),
+        supabase.from('caterers').select('caterer_id, name').order('name'),
       ]);
-      setProfiles({ students: sc || 0, caterers: cc || 0 });
       setAllReports(reports || []);
+      setAllFeedback(feedbacks || []);
       setCaterers(cats || []);
     } catch (err) { console.error(err); }
-    finally { setLoading(false); setTimeout(() => setAnimate(true), 80); }
+    finally { setLoading(false); }
   };
 
   useEffect(() => { fetchAll(); }, []);
-  useEffect(() => { setAnimate(false); setTimeout(() => setAnimate(true), 80); }, [filterMess, filterMeal, timePreset]);
 
-  const filtered = useMemo(() => {
-    return allReports.filter(r => {
-      const d = new Date(r.report_date);
-      const inRange = !dateRange.from || (d >= dateRange.from && d <= (dateRange.to || new Date()));
-      return inRange &&
-        (filterMess === 'all' || r.caterers?.name === filterMess) &&
-        (filterMeal === 'all' || r.meal_type === filterMeal);
-    });
-  }, [allReports, filterMess, filterMeal, dateRange]);
+  const inRange = (dateStr, from, to) => {
+    if (!from) return true;
+    const d = new Date(dateStr);
+    return d >= from && d <= (to || new Date());
+  };
 
-  const totals = useMemo(() => {
-    const plate = filtered.reduce((s,r) => s + (Number(r.plate_waste)||0), 0);
-    const unc   = filtered.reduce((s,r) => s + (Number(r.kitchen_uncooked)||0), 0);
-    const coo   = filtered.reduce((s,r) => s + (Number(r.kitchen_cooked)||0), 0);
-    return { plate, unc, coo, grand: plate+unc+coo, count: filtered.length };
-  }, [filtered]);
+  const filterItem = (item, dateField, from, to) =>
+    inRange(item[dateField], from, to) &&
+    (filterMess === 'all' || item.caterers?.name === filterMess);
 
-  const messSummary = useMemo(() => {
-    const map = {};
-    filtered.forEach(r => {
+  const { cur, prev, globalBaselineAvg, messSummary } = useMemo(() => {
+    const curReps = allReports.filter(r => filterItem(r, 'report_date', dateRange.from, dateRange.to));
+    const curFbs  = allFeedback.filter(f => filterItem(f, 'date', dateRange.from, dateRange.to));
+    const prvReps = allReports.filter(r => filterItem(r, 'report_date', dateRange.prevFrom, dateRange.prevTo));
+    const prvFbs  = allFeedback.filter(f => filterItem(f, 'date', dateRange.prevFrom, dateRange.prevTo));
+
+    // Global baseline (all messes, current period) for carbon
+    const globalReps = allReports.filter(r => inRange(r.report_date, dateRange.from, dateRange.to));
+    const globalWaste = globalReps.reduce((s, r) => s + Number(r.plate_waste || 0) + Number(r.kitchen_uncooked || 0) + Number(r.kitchen_cooked || 0), 0);
+    const globalBaselineAvg = globalReps.length > 0 ? globalWaste / globalReps.length : 0;
+
+    const calc = (reps, fbs) => {
+      const plate   = reps.reduce((s, r) => s + (Number(r.plate_waste) || 0), 0);
+      const kitchen = reps.reduce((s, r) => s + (Number(r.kitchen_uncooked) || 0) + (Number(r.kitchen_cooked) || 0), 0);
+      const total   = plate + kitchen;
+      const avg     = reps.length > 0 ? total / reps.length : 0;
+      const rating  = fbs.length > 0 ? fbs.reduce((s, f) => s + (Number(f.rating) || 0), 0) / fbs.length : 0;
+      const co2     = total * CO2_PER_KG_WASTE;
+      const savings = globalBaselineAvg - avg;
+      const credits = savings > 0 ? (savings * reps.length * CO2_PER_KG_WASTE) / 1000 : 0;
+      return { plate, kitchen, total, avg, reportsCount: reps.length, fbsCount: fbs.length, rating, co2, credits };
+    };
+
+    // Per-mess summary
+    const messMap = {};
+    curReps.forEach(r => {
       const n = r.caterers?.name || 'Unknown';
-      if (!map[n]) map[n] = { name:n, plate_waste:0, kitchen_uncooked:0, kitchen_cooked:0, count:0 };
-      map[n].plate_waste      += Number(r.plate_waste)||0;
-      map[n].kitchen_uncooked += Number(r.kitchen_uncooked)||0;
-      map[n].kitchen_cooked   += Number(r.kitchen_cooked)||0;
-      map[n].count++;
+      if (!messMap[n]) messMap[n] = { name: n, count: 0, total: 0, ratings: [] };
+      messMap[n].count++;
+      messMap[n].total += (Number(r.plate_waste) || 0) + (Number(r.kitchen_uncooked) || 0) + (Number(r.kitchen_cooked) || 0);
     });
-    return Object.values(map).map(m => ({ ...m, total: m.plate_waste+m.kitchen_uncooked+m.kitchen_cooked })).sort((a,b)=>b.total-a.total);
-  }, [filtered]);
+    curFbs.forEach(f => {
+      const n = f.caterers?.name || 'Unknown';
+      if (messMap[n]) messMap[n].ratings.push(Number(f.rating) || 0);
+    });
+    const messSummary = Object.values(messMap)
+      .map(m => ({ ...m, avgRating: m.ratings.length ? m.ratings.reduce((s, v) => s + v, 0) / m.ratings.length : 0 }))
+      .sort((a, b) => b.total - a.total);
 
-  const mealSummary = useMemo(() => {
-    const types = filterMeal === 'all' ? ['breakfast','lunch','dinner'] : [filterMeal];
-    return types.map(mt => {
-      const rows = filtered.filter(r => r.meal_type === mt);
-      const p = rows.reduce((s,r)=>s+(Number(r.plate_waste)||0),0);
-      const u = rows.reduce((s,r)=>s+(Number(r.kitchen_uncooked)||0),0);
-      const c = rows.reduce((s,r)=>s+(Number(r.kitchen_cooked)||0),0);
-      return { label: mt, values:[p,u,c], total: p+u+c };
-    }).filter(m => m.total > 0);
-  }, [filtered, filterMeal]);
+    return { cur: calc(curReps, curFbs), prev: calc(prvReps, prvFbs), globalBaselineAvg, messSummary };
+  }, [allReports, allFeedback, filterMess, dateRange]);
 
-  const maxMealVal = useMemo(() => Math.max(...mealSummary.flatMap(m=>m.values), 1), [mealSummary]);
-  const maxGrouped = useMemo(() => Math.max(...messSummary.map(m=>Math.max(m.plate_waste,m.kitchen_uncooked,m.kitchen_cooked)), 1), [messSummary]);
-
-  const donutData = [
-    { key:'plate', label:'Plate Waste',      color:'#e74c3c', value: totals.plate },
-    { key:'unc',   label:'Kitchen Uncooked',  color:'#f39c12', value: totals.unc   },
-    { key:'coo',   label:'Kitchen Cooked',    color:'#6c5ce7', value: totals.coo   },
-  ];
-
-  const avgGrand  = totals.count > 0 ? (totals.grand / totals.count).toFixed(1) : '—';
-  const worstMess = messSummary.length > 0 ? messSummary[0] : null;
-  const bestMess  = messSummary.length > 1 ? messSummary[messSummary.length-1] : null;
-  const filtersActive = filterMess !== 'all' || filterMeal !== 'all' || timePreset !== 'month';
+  const getTrend = (c, p) => p === 0 ? (c > 0 ? 100 : 0) : ((c - p) / p) * 100;
 
   if (loading) return (
-    <div className="admin-loading" style={{ height: '40vh' }}>
-      <Loader2 size={24} className="spin" /> Loading overview…
+    <div className="admin-loading" style={{ height: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: 'var(--text-muted)' }}>
+      <Loader2 size={22} className="spin" /> Loading overview…
     </div>
   );
 
+  const noData = cur.reportsCount === 0 && cur.fbsCount === 0;
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:'22px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* ══ DATA CONTEXT BANNER ══ */}
+      {/* ── Header bar ── */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
-        background: 'rgba(46,204,113,0.07)', border: '1px solid rgba(46,204,113,0.2)',
-        borderRadius: '12px', padding: '11px 18px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        flexWrap: 'wrap', gap: 10,
       }}>
-        <Calendar size={16} color="var(--primary-green)" />
-        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>
-          Showing data for:
-        </span>
-        <span style={{ fontSize: '0.82rem', color: 'var(--primary-green)', fontWeight: 800 }}>
-          {dateRange.label}
-        </span>
-        {filterMess !== 'all' && (
-          <>
-            <span style={{ color: 'var(--border-color)' }}>·</span>
-            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>Mess:</span>
-            <span style={{ fontSize: '0.82rem', color: 'var(--primary-blue)', fontWeight: 700 }}>{filterMess}</span>
-          </>
-        )}
-        {filterMeal !== 'all' && (
-          <>
-            <span style={{ color: 'var(--border-color)' }}>·</span>
-            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-main)' }}>Meal:</span>
-            <span style={{ fontSize: '0.82rem', color: 'var(--primary-blue)', fontWeight: 700, textTransform: 'capitalize' }}>{filterMeal}</span>
-          </>
-        )}
-        <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {totals.count} report{totals.count !== 1 ? 's' : ''} matched
-        </span>
-      </div>
-
-      {/* ══ FILTER BAR ══ */}
-      <div style={{
-        display:'flex', alignItems:'center', gap:'12px', flexWrap:'wrap',
-        background:'var(--bg-card)', border:'1px solid var(--border-color)',
-        borderRadius:'14px', padding:'14px 18px', boxShadow:'var(--shadow)',
-      }}>
-        <div style={{ display:'flex', alignItems:'center', gap:'6px', color:'var(--text-muted)', fontWeight:700, fontSize:'0.78rem', marginRight:'4px' }}>
-          <Filter size={14} /> FILTERS
-        </div>
-
-        {/* Time presets */}
-        <div style={{ display:'flex', gap:'4px', flexWrap:'wrap' }}>
-          {TIME_PRESETS.map(p => (
-            <button key={p.key} onClick={() => setTimePreset(p.key)} style={{
-              padding:'7px 12px', borderRadius:'8px', border:'none', cursor:'pointer',
-              fontSize:'0.78rem', fontWeight:700,
-              background: timePreset === p.key ? 'var(--primary-blue)' : 'var(--bg-hover)',
-              color:       timePreset === p.key ? '#fff' : 'var(--text-muted)',
-              transition:'all 0.15s',
-            }}>{p.label}</button>
-          ))}
-        </div>
-
-        <div style={{ width:'1px', height:'24px', background:'var(--border-color)' }} />
-
-        {/* Mess */}
-        <select value={filterMess} onChange={e=>setFilterMess(e.target.value)} style={{
-          padding:'8px 34px 8px 12px', borderRadius:'10px', outline:'none', fontFamily:'inherit', fontWeight:600,
-          border:`1px solid ${filterMess!=='all'?'var(--primary-green)':'var(--border-color)'}`,
-          background: filterMess!=='all' ? 'rgba(46,204,113,0.08)' : 'var(--bg-input)',
-          color:'var(--text-main)', fontSize:'0.875rem', cursor:'pointer', appearance:'none',
-          backgroundImage:"url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%232ecc71' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e\")",
-          backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center', backgroundSize:'14px',
-        }}>
-          <option value="all">All Messes</option>
-          {caterers.map(c => <option key={c.caterer_id} value={c.name}>{c.name}</option>)}
-        </select>
-
-        {/* Meal tabs */}
-        <div style={{ display:'flex', gap:'5px', flexWrap:'wrap' }}>
-          {MEAL_TYPES.map(m => (
-            <button key={m} onClick={() => setFilterMeal(m)} style={{
-              padding:'7px 13px', borderRadius:'8px', border:'none', cursor:'pointer',
-              fontSize:'0.78rem', fontWeight:700, textTransform:'capitalize',
-              background: filterMeal===m ? 'var(--primary-green)' : 'var(--bg-hover)',
-              color:       filterMeal===m ? '#fff' : 'var(--text-muted)',
-              transition:'all 0.15s',
-            }}>{m === 'all' ? 'All Meals' : m}</button>
-          ))}
-        </div>
-
-        <button className="icon-btn" onClick={fetchAll} title="Refresh data" style={{ marginLeft:'auto' }}>
-          <RefreshCw size={15} />
-        </button>
-
-        {filtersActive && (
-          <button onClick={() => { setFilterMess('all'); setFilterMeal('all'); setTimePreset('month'); }} style={{
-            padding:'6px 12px', borderRadius:'8px', border:'1px solid var(--border-color)',
-            background:'transparent', color:'var(--danger)', fontSize:'0.78rem', fontWeight:600, cursor:'pointer',
-          }}>✕ Reset</button>
-        )}
-      </div>
-
-      {/* ══ STAT CARDS ══ */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(178px,1fr))', gap:'14px' }}>
-        <div className="stat-card">
-          <div className="stat-icon blue"><Users size={20}/></div>
-          <div className="stat-label">Students</div>
-          <div className="stat-value">{profiles.students}</div>
-          <div className="stat-sub">All registered</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon green"><UtensilsCrossed size={20}/></div>
-          <div className="stat-label">Caterers</div>
-          <div className="stat-value">{profiles.caterers}</div>
-          <div className="stat-sub">Active messes</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon red"><Trash2 size={20}/></div>
-          <div className="stat-label">Plate Waste</div>
-          <div className="stat-value" style={{ color:'#e74c3c' }}>
-            {totals.plate.toFixed(1)}<span style={{ fontSize:'1rem', fontWeight:400, color:'var(--text-muted)' }}> kg</span>
-          </div>
-          <div className="stat-sub">{dateRange.label}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon yellow"><Trash2 size={20}/></div>
-          <div className="stat-label">Kitchen Uncooked</div>
-          <div className="stat-value" style={{ color:'#f39c12' }}>
-            {totals.unc.toFixed(1)}<span style={{ fontSize:'1rem', fontWeight:400, color:'var(--text-muted)' }}> kg</span>
-          </div>
-          <div className="stat-sub">Pre-cooking loss · {dateRange.label}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon blue" style={{ background:'rgba(108,92,231,0.12)', color:'var(--primary-blue)' }}>
-            <Trash2 size={20}/>
-          </div>
-          <div className="stat-label">Kitchen Cooked</div>
-          <div className="stat-value" style={{ color:'var(--primary-blue)' }}>
-            {totals.coo.toFixed(1)}<span style={{ fontSize:'1rem', fontWeight:400, color:'var(--text-muted)' }}> kg</span>
-          </div>
-          <div className="stat-sub">Post-cooking loss · {dateRange.label}</div>
-        </div>
-        <div className="stat-card" style={{ border:'1px solid rgba(231,76,60,0.25)', background:'rgba(231,76,60,0.03)' }}>
-          <div className="stat-icon red"><TrendingDown size={20}/></div>
-          <div className="stat-label">Grand Total</div>
-          <div className="stat-value">
-            {totals.grand.toFixed(1)}<span style={{ fontSize:'1rem', fontWeight:400, color:'var(--text-muted)' }}> kg</span>
-          </div>
-          <div className="stat-sub">Avg {avgGrand} kg / report</div>
-        </div>
-      </div>
-
-      {/* ══ ROW 1: Grouped bars + Donut ══ */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 310px', gap:'20px', alignItems:'start' }}>
-
-        <div className="chart-card">
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'22px' }}>
-            <div>
-              <h3 style={{ margin:0, fontSize:'1rem', fontWeight:800 }}>Waste Breakdown by Mess</h3>
-              <p style={{ margin:'4px 0 0', fontSize:'0.74rem', color:'var(--text-muted)' }}>
-                All 3 categories · {dateRange.label}
-                {filterMeal !== 'all' && ` · ${filterMeal} only`}
-              </p>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:'5px', flexShrink:0 }}>
-              {WASTE_CATS.map(c => (
-                <div key={c.key} style={{ display:'flex', alignItems:'center', gap:'6px' }}>
-                  <div style={{ width:9, height:9, borderRadius:'2px', background:c.color }} />
-                  <span style={{ fontSize:'0.7rem', color:'var(--text-muted)' }}>{c.label}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {messSummary.length === 0
-            ? <div className="admin-empty"><Trash2 size={40} className="admin-empty-icon"/><p>No data for selected filters</p></div>
-            : messSummary.map(row => <GroupedBar key={row.name} row={row} max={maxGrouped} animate={animate}/>)
-          }
-        </div>
-
-        <div className="chart-card" style={{ padding:'22px' }}>
-          <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:800 }}>Waste Distribution</h3>
-          <p style={{ margin:'0 0 16px', fontSize:'0.74rem', color:'var(--text-muted)' }}>{dateRange.label}</p>
-          {totals.grand === 0
-            ? <div className="admin-empty" style={{ padding:'30px 0' }}><Trash2 size={36} className="admin-empty-icon"/><p style={{ margin:0, fontSize:'0.85rem' }}>No data</p></div>
-            : (
-              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:'14px' }}>
-                <DonutChart data={donutData} total={totals.grand}/>
-                <div style={{ width:'100%', display:'flex', flexDirection:'column', gap:'9px' }}>
-                  {donutData.map(d => {
-                    const pct = totals.grand > 0 ? ((d.value/totals.grand)*100).toFixed(1) : 0;
-                    return (
-                      <div key={d.key} style={{
-                        display:'flex', alignItems:'center', gap:'9px',
-                        padding:'8px 12px', borderRadius:'10px',
-                        background: d.color+'18', border:`1px solid ${d.color}30`,
-                      }}>
-                        <div style={{ width:9, height:9, borderRadius:'50%', background:d.color, flexShrink:0 }}/>
-                        <span style={{ flex:1, fontSize:'0.78rem', fontWeight:600, color:'var(--text-main)' }}>{d.label}</span>
-                        <span style={{ fontSize:'0.78rem', fontWeight:700, color:'var(--text-muted)' }}>{d.value.toFixed(1)} kg</span>
-                        <span style={{ fontSize:'0.85rem', fontWeight:800, color:d.color }}>{pct}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )
-          }
-        </div>
-      </div>
-
-      {/* ══ ROW 2: Stacked + Meal ══ */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
-        <div className="chart-card">
-          <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:800 }}>Waste Composition per Mess</h3>
-          <p style={{ margin:'0 0 14px', fontSize:'0.74rem', color:'var(--text-muted)' }}>
-            Proportional split across categories · {dateRange.label}
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-main)' }}>
+            Overview
+          </h2>
+          <p style={{ margin: '3px 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+            {dateRange.label}
           </p>
-          <div style={{ display:'flex', gap:'12px', marginBottom:'14px', flexWrap:'wrap' }}>
-            {WASTE_CATS.map(c => (
-              <div key={c.key} style={{ display:'flex', alignItems:'center', gap:'5px' }}>
-                <div style={{ width:9, height:9, borderRadius:'2px', background:c.color }}/>
-                <span style={{ fontSize:'0.69rem', color:'var(--text-muted)' }}>{c.label}</span>
-              </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* Time pill group */}
+          <div style={{
+            display: 'flex', gap: 3, background: 'var(--bg-hover)',
+            borderRadius: 10, padding: 3, border: '1px solid var(--border-color)',
+          }}>
+            {TIME_PRESETS.map(p => (
+              <button
+                key={p.key}
+                onClick={() => setTimePreset(p.key)}
+                style={{
+                  padding: '5px 10px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  fontSize: '0.75rem', fontWeight: 700, transition: 'all 0.15s',
+                  background: timePreset === p.key ? 'var(--bg-card)' : 'transparent',
+                  color: timePreset === p.key ? 'var(--text-main)' : 'var(--text-muted)',
+                  boxShadow: timePreset === p.key ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                }}
+              >
+                {p.label}
+              </button>
             ))}
           </div>
-          {messSummary.length === 0
-            ? <div className="admin-empty" style={{ padding:'20px 0' }}><p style={{ margin:0, fontSize:'0.85rem' }}>No data</p></div>
-            : messSummary.map(row => <StackedBar key={row.name} row={row}/>)
-          }
-        </div>
 
-        <div className="chart-card">
-          <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:800 }}>Waste by Meal Type</h3>
-          <p style={{ margin:'0 0 16px', fontSize:'0.74rem', color:'var(--text-muted)' }}>
-            Per-category waste across breakfast, lunch & dinner · {dateRange.label}
-          </p>
-          {mealSummary.length === 0
-            ? <div className="admin-empty" style={{ padding:'20px 0' }}><p style={{ margin:0, fontSize:'0.85rem' }}>No meal data</p></div>
-            : mealSummary.map(m => <MealBar key={m.label} label={m.label} values={m.values} max={maxMealVal}/>)
-          }
+          {/* Mess select */}
+          <select
+            value={filterMess}
+            onChange={e => setFilterMess(e.target.value)}
+            className="admin-filter-select"
+            style={{ fontSize: '0.78rem', fontWeight: 600, padding: '6px 32px 6px 10px' }}
+          >
+            <option value="all">All Messes</option>
+            {caterers.map(c => <option key={c.caterer_id} value={c.name}>{c.name}</option>)}
+          </select>
+
+          <button className="icon-btn" onClick={fetchAll} title="Refresh">
+            <RefreshCw size={14} />
+          </button>
         </div>
       </div>
 
-      {/* ══ ROW 3: Table ══ */}
-      <div className="admin-table-wrapper">
-        <div className="admin-table-header">
-          <div>
-            <h3 style={{ margin:0 }}>Mess-wise Waste Summary</h3>
-            <div style={{ display:'flex', gap:'14px', marginTop:'5px', flexWrap:'wrap' }}>
-              <span style={{ fontSize:'0.74rem', color:'var(--text-muted)' }}>
-                {dateRange.label}
-                {filterMess !== 'all' && ` · ${filterMess}`}
-                {filterMeal !== 'all' && ` · ${filterMeal}`}
-              </span>
-              {worstMess && <span style={{ fontSize:'0.74rem', color:'var(--danger)' }}>Most wasteful: <strong>{worstMess.name}</strong> ({worstMess.total.toFixed(1)} kg)</span>}
-              {bestMess  && <span style={{ fontSize:'0.74rem', color:'var(--primary-green)' }}>Best: <strong>{bestMess.name}</strong> ({bestMess.total.toFixed(1)} kg)</span>}
-            </div>
+      {/* ── Metric Cards (2-col auto grid) ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+        gap: 14,
+      }}>
+
+        {/* 1. Waste Reports */}
+        <MetricCard
+          icon={FileText}
+          accent="#6c5ce7"
+          label="Reports Filed"
+          value={cur.reportsCount}
+          unit="entries"
+          trend={getTrend(cur.reportsCount, prev.reportsCount)}
+          sub1={{ label: 'Avg waste/report', value: `${cur.avg.toFixed(1)} kg`, color: 'var(--text-main)' }}
+          sub2={{ label: 'vs prev period', value: `${prev.reportsCount} entries`, color: 'var(--text-muted)' }}
+        />
+
+        {/* 2. Waste Breakdown */}
+        <MetricCard
+          icon={Trash2}
+          accent="#e74c3c"
+          label="Total Waste"
+          value={cur.total.toFixed(1)}
+          unit="kg"
+          trend={getTrend(cur.total, prev.total)}
+          inverseTrend
+          sub1={{ label: 'Plate', value: `${cur.plate.toFixed(1)} kg`, color: '#e74c3c' }}
+          sub2={{ label: 'Kitchen', value: `${cur.kitchen.toFixed(1)} kg`, color: '#f39c12' }}
+        />
+
+        {/* 3. Student Feedback */}
+        <MetricCard
+          icon={Star}
+          accent="#f1c40f"
+          label="Avg Rating"
+          value={cur.fbsCount > 0 ? cur.rating.toFixed(1) : '—'}
+          unit={cur.fbsCount > 0 ? '/ 10' : ''}
+          trend={getTrend(cur.rating, prev.rating)}
+          sub1={{ label: 'Reviews', value: `${cur.fbsCount}`, color: 'var(--text-main)' }}
+          sub2={{
+            label: 'Sentiment',
+            value: cur.fbsCount === 0 ? 'No data' : cur.rating >= 7 ? '😊 Good' : cur.rating >= 5 ? '😐 Okay' : '😞 Poor',
+            color: cur.rating >= 7 ? '#2ecc71' : cur.rating >= 5 ? '#f39c12' : '#e74c3c',
+          }}
+        />
+
+        {/* 4. Carbon Summary */}
+        <MetricCard
+          icon={Leaf}
+          accent="#2ecc71"
+          label="CO₂ Generated"
+          value={cur.co2.toFixed(1)}
+          unit="kg"
+          trend={getTrend(cur.co2, prev.co2)}
+          inverseTrend
+          sub1={{ label: 'Credits earned', value: cur.credits > 0 ? `${cur.credits.toFixed(3)} t` : '—', color: '#2ecc71' }}
+          sub2={{ label: 'vs baseline', value: globalBaselineAvg > 0 ? (cur.avg <= globalBaselineAvg ? '✓ Below' : '✗ Above') : '—', color: globalBaselineAvg > 0 ? (cur.avg <= globalBaselineAvg ? '#2ecc71' : '#e74c3c') : 'var(--text-muted)' }}
+        />
+      </div>
+
+      {/* ── Carbon Detail Card (spans 2 cols if space) ── */}
+      {cur.reportsCount > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+          <CarbonCard
+            co2kg={cur.co2}
+            creditsTonnes={cur.credits}
+            baseline={globalBaselineAvg}
+            avgWaste={cur.avg}
+            reportsCount={cur.reportsCount}
+          />
+        </div>
+      )}
+
+      {/* ── Bottom row: Mess summary + Feedback breakdown ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+
+        {/* Mess-wise summary */}
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <BarChart3 size={15} color="var(--text-muted)" />
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>Mess Summary</span>
+            <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600 }}>
+              {messSummary.length} {messSummary.length === 1 ? 'mess' : 'messes'}
+            </span>
           </div>
-          <div style={{ fontSize:'0.78rem', color:'var(--text-muted)' }}>{totals.count} report{totals.count!==1?'s':''}</div>
+          <div style={{ padding: '4px 18px 10px' }}>
+            {messSummary.length === 0 ? (
+              <div style={{ padding: '20px 0', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                No data for this period
+              </div>
+            ) : (
+              messSummary.slice(0, 6).map((m, i) => (
+                <MessRow
+                  key={m.name}
+                  {...m}
+                  isLast={i === Math.min(messSummary.length, 6) - 1}
+                />
+              ))
+            )}
+          </div>
         </div>
 
-        {messSummary.length === 0
-          ? <div className="admin-empty"><Trash2 size={42} className="admin-empty-icon"/><p style={{ margin:0, fontWeight:600 }}>No data for current filters</p></div>
-          : (
-            <div style={{ overflowX:'auto' }}>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>#</th><th>Mess</th><th>Reports</th>
-                    <th style={{ color:'#e74c3c' }}>Plate (kg)</th>
-                    <th style={{ color:'#f39c12' }}>K. Uncooked (kg)</th>
-                    <th style={{ color:'#6c5ce7' }}>K. Cooked (kg)</th>
-                    <th>Total</th><th>Share</th><th>Avg/Report</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {messSummary.map((row, i) => {
-                    const share  = totals.grand > 0 ? ((row.total/totals.grand)*100).toFixed(1) : 0;
-                    const avgRep = row.count > 0 ? (row.total/row.count).toFixed(1) : '—';
-                    const isWorst = i===0 && messSummary.length>1;
-                    const isBest  = i===messSummary.length-1 && messSummary.length>1;
-                    return (
-                      <tr key={row.name}>
-                        <td>
-                          <span style={{
-                            display:'inline-flex', alignItems:'center', justifyContent:'center',
-                            width:26, height:26, borderRadius:'7px', fontWeight:800, fontSize:'0.8rem',
-                            background: isWorst?'rgba(231,76,60,0.12)': isBest?'rgba(46,204,113,0.12)':'var(--bg-hover)',
-                            color: isWorst?'var(--danger)': isBest?'var(--primary-green)':'var(--text-muted)',
-                          }}>{i+1}</span>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight:700 }}>{row.name}</span>
-                          {isWorst && <span style={{ marginLeft:'7px', fontSize:'0.67rem', background:'rgba(231,76,60,0.12)', color:'var(--danger)', padding:'2px 7px', borderRadius:'20px', fontWeight:700 }}>Most Waste</span>}
-                          {isBest  && <span style={{ marginLeft:'7px', fontSize:'0.67rem', background:'rgba(46,204,113,0.12)', color:'var(--primary-green)', padding:'2px 7px', borderRadius:'20px', fontWeight:700 }}>Best</span>}
-                        </td>
-                        <td className="muted">{row.count}</td>
-                        <td><span style={{ fontWeight:700, color:'#e74c3c' }}>{row.plate_waste.toFixed(1)}</span></td>
-                        <td><span style={{ fontWeight:700, color:'#f39c12' }}>{row.kitchen_uncooked.toFixed(1)}</span></td>
-                        <td><span style={{ fontWeight:700, color:'#6c5ce7' }}>{row.kitchen_cooked.toFixed(1)}</span></td>
-                        <td><span style={{ fontWeight:800, fontSize:'0.95rem' }}>{row.total.toFixed(1)} kg</span></td>
-                        <td>
-                          <div style={{ display:'flex', alignItems:'center', gap:'7px' }}>
-                            <div style={{ width:'56px', height:'6px', background:'var(--border-color)', borderRadius:'3px', overflow:'hidden' }}>
-                              <div style={{ width:`${share}%`, height:'6px', borderRadius:'3px', background:'var(--danger)' }}/>
-                            </div>
-                            <span style={{ fontSize:'0.78rem', fontWeight:700, color:'var(--text-muted)' }}>{share}%</span>
-                          </div>
-                        </td>
-                        <td className="muted" style={{ fontWeight:700 }}>{avgRep} kg</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr style={{ borderTop:'2px solid var(--border-color)', background:'var(--bg-hover)' }}>
-                    <td colSpan={2} style={{ padding:'12px 20px', fontWeight:800, fontSize:'0.85rem' }}>TOTAL</td>
-                    <td style={{ padding:'12px 20px', color:'var(--text-muted)', fontSize:'0.82rem', fontWeight:600 }}>{totals.count}</td>
-                    <td style={{ padding:'12px 20px', fontWeight:800, color:'#e74c3c' }}>{totals.plate.toFixed(1)}</td>
-                    <td style={{ padding:'12px 20px', fontWeight:800, color:'#f39c12' }}>{totals.unc.toFixed(1)}</td>
-                    <td style={{ padding:'12px 20px', fontWeight:800, color:'#6c5ce7' }}>{totals.coo.toFixed(1)}</td>
-                    <td style={{ padding:'12px 20px', fontWeight:800, fontSize:'1rem' }}>{totals.grand.toFixed(1)} kg</td>
-                    <td style={{ padding:'12px 20px', fontWeight:700, color:'var(--text-muted)' }}>100%</td>
-                    <td style={{ padding:'12px 20px', fontWeight:700, color:'var(--text-muted)' }}>{avgGrand} kg</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )
-        }
+        {/* Feedback snapshot */}
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Star size={15} color="var(--text-muted)" />
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-main)' }}>Feedback Snapshot</span>
+          </div>
+          <div style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {cur.fbsCount === 0 ? (
+              <div style={{ textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)', padding: '16px 0' }}>
+                No feedback for this period
+              </div>
+            ) : (
+              <>
+                {/* Rating gauge */}
+                <div style={{ display: 'flex', align: 'center', gap: 12, alignItems: 'center' }}>
+                  <div style={{
+                    width: 56, height: 56, borderRadius: '50%', flexShrink: 0,
+                    background: `conic-gradient(${cur.rating >= 7 ? '#2ecc71' : cur.rating >= 5 ? '#f39c12' : '#e74c3c'} ${cur.rating * 36}deg, var(--border-color) 0deg)`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: 'inset 0 0 0 5px var(--bg-card)',
+                  }}>
+                    <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                      {cur.rating.toFixed(1)}
+                    </span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-main)' }}>
+                      {cur.rating >= 7 ? 'Students are satisfied' : cur.rating >= 5 ? 'Room for improvement' : 'Needs attention'}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      Based on {cur.fbsCount} reviews
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stars */}
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} style={{
+                      flex: 1, height: 5, borderRadius: 3,
+                      background: i < Math.round(cur.rating) ? (cur.rating >= 7 ? '#2ecc71' : cur.rating >= 5 ? '#f39c12' : '#e74c3c') : 'var(--border-color)',
+                      transition: 'background 0.3s',
+                    }} />
+                  ))}
+                </div>
+
+                {/* vs prev */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 4, borderTop: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '0.71rem', color: 'var(--text-muted)', fontWeight: 600 }}>vs previous period</span>
+                  <Trend pct={getTrend(cur.rating, prev.rating)} />
+                </div>
+              </>
+            )}
+          </div>
+        </div>
       </div>
 
     </div>

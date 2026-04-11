@@ -11,7 +11,7 @@ import './Admin.css';
 import OverviewView      from './components/OverviewView';
 import WasteReportsView  from './components/WasteReportsView';
 import AdminFeedbackView from './components/AdminFeedbackView';
-import MessagesView      from './components/MessagesView';
+import MessagesView      from './components/AdminMessagesView';
 import UsersView         from './components/UsersView';
 import MenuView          from './components/MenuView';
 import ReportCalendarView from './components/ReportCalendarView'; 

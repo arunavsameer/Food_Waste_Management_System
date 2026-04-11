@@ -20,9 +20,9 @@
 │   │   ├── AdminDashboard.jsx
 │   │   └── components
 │   │       ├── AdminFeedbackView.jsx
+│   │       ├── AdminMessagesView.jsx
 │   │       ├── CarbonView.jsx
 │   │       ├── MenuView.jsx
-│   │       ├── MessagesView.jsx
 │   │       ├── OverviewView.jsx
 │   │       ├── ReportCalendarView.jsx
 │   │       ├── UsersView.jsx

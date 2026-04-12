@@ -600,9 +600,7 @@ table.admin-table {
   box-shadow: 0 10px 30px rgba(231, 76, 60, 0.3);
 }
 
-.feedback-toast.visible {
-  /* legacy compat — no-op since animation handles visibility */
-}
+
 
 .toast-icon {
   display: flex;

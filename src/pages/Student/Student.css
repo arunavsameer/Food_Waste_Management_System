@@ -352,24 +352,113 @@
    =========================== */
 @media (max-width: 768px) {
   .main-content { padding: 1rem; padding-bottom: 80px; }
-  .top-bar { flex-direction: column; align-items: flex-start; gap: 15px; }
-  .user-info { width: 100%; justify-content: flex-end; }
-  .calendar-layout { flex-direction: column; }
-  .calendar-section, .sidebar-widgets { width: 100%; min-width: 0; }
-  
+
+  /* ─────────────────────────────────────────────────────────
+     TOP HEADER — two rows:
+       Row 1: ≡ hamburger  ···  🎮 credits  👤 avatar
+       Row 2: page title (full width)
+
+     How it works (no JSX change needed):
+       .hamburger-wrapper is row 1 left side.
+       .top-bar is pulled up via negative margin-top so its
+       .user-info sits on the same visual line as the hamburger.
+       .page-title is forced onto its own wrapped line below.
+  ───────────────────────────────────────────────────────── */
+
+  /* Row 1 left: just the hamburger button */
+  .hamburger-wrapper {
+    display: flex;
+    align-items: center;
+    height: 46px;
+    margin-bottom: 0;
+  }
+
+  /* Pull top-bar up to overlap hamburger row */
+  .top-bar {
+    display: flex;
+    flex-flow: row wrap;
+    align-items: center;
+    margin-top: -46px;          /* line up with hamburger */
+    margin-bottom: 1rem;
+    gap: 0;
+  }
+
+  /* Row 1 right: credits + avatar pushed to far right */
+  .user-info {
+    order: 1;
+    display: flex;
+    align-items: center;
+    width: auto !important;
+    margin-left: auto;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* Row 2: full-width title on its own line */
+  .page-title {
+    order: 2;
+    flex-basis: 100%;
+    font-size: 1.2rem;
+    margin-top: 10px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+  }
+
+  /* ─────────────────────────────────────────────────────────
+     CALENDAR LAYOUT — order:
+       1. Eat-or-Skip card
+       2. Calendar section
+       3. Menu card
+     Uses display:contents on sidebar-widgets so its children
+     participate directly in the parent flex order.
+  ───────────────────────────────────────────────────────── */
+  .calendar-layout {
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Make sidebar-widgets "transparent" — children join parent flex */
+  .sidebar-widgets {
+    display: contents;
+  }
+
+  .eat-skip-card   { order: 1; margin-bottom: 16px; }
+  .calendar-section {
+    order: 2;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+  .menu-card       { order: 3; margin-top: 16px; width: 100%; }
+
+  /* ─────────────────────────────────────────────────────────
+     CALENDAR GRID — all 7 days visible, no horizontal scroll
+  ───────────────────────────────────────────────────────── */
   .calendar-grid {
     display: grid;
-    grid-template-columns: repeat(7, minmax(60px, 1fr)); 
-    gap: 10px;
-    overflow-x: auto;
-    padding-bottom: 15px; 
-    min-width: 100%; 
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+    overflow-x: hidden;
+    padding-bottom: 0;
+    min-width: 0;
   }
-  .calendar-section { overflow: hidden; }
+
+  /* Compact cells — flat edges on mobile */
+  .calendar-cell {
+    border-radius: 4px !important;
+    padding: 5px 3px;
+    min-height: 58px;
+    min-width: 0;
+  }
+  .calendar-cell .date-num    { font-size: 0.6rem; }
+  .calendar-cell .rating-score { font-size: 0.95rem; }
+  .calendar-cell .dish-name   { font-size: 0.52rem; }
+  .grid-header                { font-size: 0.62rem; margin-bottom: 6px; }
+
   .form-row { flex-direction: column; gap: 15px; }
-  
+
   .sidebar { position: fixed; height: 100%; z-index: 1000; box-shadow: 2px 0 15px rgba(0,0,0,0.2); }
-  .sidebar.closed { width: 0; padding: 0; overflow: hidden; }
   .sidebar.closed { width: 60px; padding: 1.5rem 5px; }
 }
 

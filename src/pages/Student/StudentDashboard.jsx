@@ -241,96 +241,128 @@ const StudentDashboard = () => {
       </aside>
 
       {/* Main Content */}
-      <main className="main-content">
-        {/* Hamburger Menu Button - ONLY on mobile, NOT sticky */}
-        {isMobile && (
-          <div className="hamburger-wrapper">
-            <button 
-              ref={hamburgerRef}
-              className="hamburger-btn"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              aria-label="Toggle menu"
-            >
-              {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-            </button>
-          </div>
-        )}
+<main className="main-content">
+  {/* Mobile Top Bar - Hamburger + Profile on same line */}
+  {isMobile && (
+    <div className="mobile-top-bar">
+      {/* Hamburger button */}
+      <div className="hamburger-wrapper">
+        <button 
+          ref={hamburgerRef}
+          className="hamburger-btn"
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          aria-label="Toggle menu"
+        >
+          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+        </button>
+      </div>
 
-        <header className="top-bar">
-          <div className="page-title">
-            {activeTab === 'calendar' && 'Mess Performance Calendar'}
-            {activeTab === 'feedback' && 'Daily Meal Feedback'}
-            {activeTab === 'trends' && 'My Feedback History'}
-            {activeTab === 'game' && 'Arcade Zone'}
-          </div>
-          <div className="user-info">
-            {/* Credit Badge */}
-            <div
-              className="credit-badge"
-              onClick={() => handleNavClick('game')}
-              style={{
-                cursor: 'pointer', marginRight: '15px', display: 'flex',
-                alignItems: 'center', gap: '5px', background: 'var(--bg-hover)',
-                padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem',
-                fontWeight: 'bold', color: '#f1c40f'
-              }}
-            >
-              <span style={{ fontSize: '1.2rem' }}>🪙</span> {credits}
+      {/* Profile section on mobile */}
+      <div className="mobile-profile-section">
+        {/* Credit Badge on mobile */}
+        <div 
+          className="mobile-credit-badge"
+          onClick={() => handleNavClick('game')}
+        >
+          <span>🪙</span> {credits}
+        </div>
+
+        {/* Mess info on mobile */}
+        <div className="mobile-mess-info">
+          <span className="mobile-mess-label">CURRENT MESS</span>
+          <span className="mobile-mess-value">{messName}</span>
+        </div>
+
+        {/* Avatar on mobile */}
+        <div className="profile-wrapper" ref={profileRef}>
+          <button
+            className="mobile-avatar-btn"
+            onClick={() => setShowProfile(prev => !prev)}
+            title="Profile"
+          >
+            {initials}
+          </button>
+
+          {showProfile && (
+            <div className="profile-dropdown">
+              <div className="pd-header">
+                <div className="pd-avatar-large">{initials}</div>
+                <p className="pd-name">{studentName || 'Student'}</p>
+                <p className="pd-sub">{studentProfile?.email || ''}</p>
+              </div>
+
+              <div className="pd-divider" />
+
+              <ul className="pd-menu">
+                <li className="pd-item">
+                  <span className="pd-item-icon"><Building2 size={16} /></span>
+                  <span className="pd-item-label">Mess</span>
+                  <span className="pd-item-value">{messName}</span>
+                </li>
+                <li className="pd-item">
+                  <span className="pd-item-icon"><UtensilsCrossed size={16} /></span>
+                  <span className="pd-item-label">Food Type</span>
+                  <span className="pd-item-value">{studentProfile?.students?.food_type || '—'}</span>
+                </li>
+                <li className="pd-item">
+                  <span className="pd-item-icon"><Hash size={16} /></span>
+                  <span className="pd-item-label">Roll No</span>
+                  <span className="pd-item-value">{studentProfile?.students?.roll_no || '—'}</span>
+                </li>
+                <li className="pd-item">
+                  <span className="pd-item-icon"><ListOrdered size={16} /></span>
+                  <span className="pd-item-label">Serial No</span>
+                  <span className="pd-item-value">{studentProfile?.students?.serial_no || '—'}</span>
+                </li>
+              </ul>
             </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )}
 
-            {/* Mess Label */}
-            <div className="user-details">
-              <span className="label">CURRENT MESS</span>
-              <span className="value">{messName}</span>
-            </div>
+  {/* Desktop Header - unchanged */}
+  <header className="top-bar">
+    <div className="page-title">
+      {activeTab === 'calendar' && 'Mess Performance Calendar'}
+      {activeTab === 'feedback' && 'Daily Meal Feedback'}
+      {activeTab === 'trends' && 'My Feedback History'}
+      {activeTab === 'game' && 'Arcade Zone'}
+    </div>
+    <div className="user-info">
+      {/* Credit Badge */}
+      <div
+        className="credit-badge"
+        onClick={() => handleNavClick('game')}
+        style={{
+          cursor: 'pointer', marginRight: '15px', display: 'flex',
+          alignItems: 'center', gap: '5px', background: 'var(--bg-hover)',
+          padding: '5px 12px', borderRadius: '20px', fontSize: '0.9rem',
+          fontWeight: 'bold', color: '#f1c40f'
+        }}
+      >
+        <span style={{ fontSize: '1.2rem' }}>🪙</span> {credits}
+      </div>
 
-            {/* Avatar + Dropdown */}
-            <div className="profile-wrapper" ref={profileRef}>
-              <button
-                className="avatar-btn"
-                onClick={() => setShowProfile(prev => !prev)}
-                title="Profile"
-              >
-                {initials}
-              </button>
+      {/* Mess Label */}
+      <div className="user-details">
+        <span className="label">CURRENT MESS</span>
+        <span className="value">{messName}</span>
+      </div>
 
-              {showProfile && (
-                <div className="profile-dropdown">
-                  <div className="pd-header">
-                    <div className="pd-avatar-large">{initials}</div>
-                    <p className="pd-name">{studentName || 'Student'}</p>
-                    <p className="pd-sub">{studentProfile?.email || ''}</p>
-                  </div>
-
-                  <div className="pd-divider" />
-
-                  <ul className="pd-menu">
-                    <li className="pd-item">
-                      <span className="pd-item-icon"><Building2 size={16} /></span>
-                      <span className="pd-item-label">Mess</span>
-                      <span className="pd-item-value">{messName}</span>
-                    </li>
-                    <li className="pd-item">
-                      <span className="pd-item-icon"><UtensilsCrossed size={16} /></span>
-                      <span className="pd-item-label">Food Type</span>
-                      <span className="pd-item-value">{studentProfile?.students?.food_type || '—'}</span>
-                    </li>
-                    <li className="pd-item">
-                      <span className="pd-item-icon"><Hash size={16} /></span>
-                      <span className="pd-item-label">Roll No</span>
-                      <span className="pd-item-value">{studentProfile?.students?.roll_no || '—'}</span>
-                    </li>
-                    <li className="pd-item">
-                      <span className="pd-item-icon"><ListOrdered size={16} /></span>
-                      <span className="pd-item-label">Serial No</span>
-                      <span className="pd-item-value">{studentProfile?.students?.serial_no || '—'}</span>
-                    </li>
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </header>
+      {/* Avatar + Dropdown */}
+      <div className="profile-wrapper" ref={profileRef}>
+        <button
+          className="avatar-btn"
+          onClick={() => setShowProfile(prev => !prev)}
+          title="Profile"
+        >
+          {initials}
+        </button>
+      </div>
+    </div>
+  </header>
 
         <div className="content-area">
           {activeTab === 'calendar' && <CalendarView messName />}

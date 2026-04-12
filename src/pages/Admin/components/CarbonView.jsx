@@ -1,12 +1,26 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { Leaf, TrendingDown, TrendingUp, Minus, Loader2 } from 'lucide-react';
+import { Leaf, Factory, Trash2, ChevronLeft, ChevronRight, AlertCircle, CheckCircle, Wind, Settings, Plus, Loader2, ShieldAlert } from 'lucide-react';
 
-// ── Constants ──────────────────────────────────────────────────────────────
-const CO2_PER_KG_WASTE  = 2.5;   // kg CO2 per kg food waste (FAO/WRAP standard)
-const KG_PER_TONNE      = 1000;
-const CO2_PER_TREE_YR   = 21;    // kg CO2 absorbed per tree per year
-const CO2_PER_CAR_YR    = 4600;  // kg CO2 emitted per car per year
+const KG_PER_TONNE = 1000;
+const BWG_THRESHOLD_KG = 100; // SWM 2026 Bulk Waste Generator threshold
+
+// SWM 2026 Compliant Default Hyperparameters
+const DEFAULT_FACTORS = {
+  baseline: {
+    unmanaged: { id: 'unmanaged', label: 'Municipal Landfill (Baseline)', value: 0.8, isDefault: true },
+  },
+  project: {
+    onsite_biogas: { id: 'onsite_biogas', label: 'On-Site Bio-Methanation', value: -0.1, isDefault: true },
+    onsite_compost: { id: 'onsite_compost', label: 'On-Site Composting', value: 0.15, isDefault: true },
+    offsite_ebwgr: { id: 'offsite_ebwgr', label: 'Off-Site EBWGR Processing', value: 0.25, isDefault: true },
+  }
+};
+
+const monthNames = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December"
+];
 
 const toLocalISODate = (d) => {
   const y = d.getFullYear();
@@ -15,339 +29,397 @@ const toLocalISODate = (d) => {
   return `${y}-${m}-${day}`;
 };
 
-const monthNames = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December"
-];
+/* ─────────────────────────────────────────────────────────
+   TOAST COMPONENT
+───────────────────────────────────────────────────────── */
+const Toast = ({ toasts }) => (
+  <div className="toast-wrapper">
+    {toasts.map(t => (
+      <div
+        key={t.id}
+        className={`feedback-toast feedback-toast-override ${t.type}`}
+      >
+        <div className="toast-icon">
+          {t.type === 'success' ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+        </div>
+        {t.message}
+      </div>
+    ))}
+  </div>
+);
 
-// Summarise an array of waste_report rows → { totalWaste, mealCount, wastePerMeal }
-const summarise = (rows) => {
-  if (!rows.length) return { totalWaste: 0, mealCount: 0, wastePerMeal: 0 };
-  const totalWaste = rows.reduce(
-    (s, r) => s + Number(r.plate_waste||0) + Number(r.kitchen_uncooked||0) + Number(r.kitchen_cooked||0), 0
-  );
-  const mealCount = rows.length;
-  return { totalWaste, mealCount, wastePerMeal: totalWaste / mealCount };
-};
-
-// ── Component ──────────────────────────────────────────────────────────────
 const CarbonView = () => {
+  // ── States ───────────────────────────────────────────────────────────────
   const [currentDate, setCurrentDate]   = useState(new Date());
   const [caterersList, setCaterersList] = useState([]);
-  const [selectedId, setSelectedId]     = useState('all');
-  const [thisMonthRows, setThisMonthRows] = useState([]);
-  const [prevMonthRows, setPrevMonthRows] = useState([]);
-  const [allCatRows, setAllCatRows]     = useState([]); // all caterers this month for baseline
+  const [selectedCaterer, setSelectedCaterer] = useState('all');
+  const [reportRows, setReportRows]     = useState([]);
   const [loading, setLoading]           = useState(false);
+
+  // Dynamic Factors State
+  const [customFactors, setCustomFactors] = useState([]);
+  const [baselineMethod, setBaselineMethod] = useState('unmanaged');
+  const [projectMethod, setProjectMethod]   = useState('onsite_biogas');
+
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('calculator');
+  const [savingEF, setSavingEF] = useState(false);
+  
+  // ── Toast State ──────────────────────────────────────────────────────────
+  const [toasts, setToasts] = useState([]);
+  
+  // Calculator Form State
+  const [calcForm, setCalcForm] = useState({
+    category: 'project',
+    name: '',
+    process_ef: -0.1,
+    transport_km: 0, 
+    transport_ef: 0.00015 
+  });
 
   const year  = currentDate.getFullYear();
   const month = currentDate.getMonth();
 
-  // ── Fetch caterers once ────────────────────────────────────────────────
+  // ── Fetch Initial Data ───────────────────────────────────────────────────
   useEffect(() => {
     supabase.from('caterers').select('caterer_id, name').order('name')
       .then(({ data }) => { if (data) setCaterersList(data); });
+      
+    fetchCustomFactors();
   }, []);
 
-  // ── Fetch waste data ───────────────────────────────────────────────────
+  const fetchCustomFactors = async () => {
+    const { data, error } = await supabase.from('custom_emission_factors').select('*').order('created_at', { ascending: false });
+    if (error) console.error("Error fetching factors:", error);
+    if (data) setCustomFactors(data);
+  };
+
+  // ── Fetch Waste Data ─────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    const loadData = async () => {
       setLoading(true);
+      const startDate = toLocalISODate(new Date(year, month, 1));
+      const endDate   = toLocalISODate(new Date(year, month + 1, 0));
 
-      const thisStart = toLocalISODate(new Date(year, month, 1));
-      const thisEnd   = toLocalISODate(new Date(year, month + 1, 0));
-      const prevStart = toLocalISODate(new Date(year, month - 1, 1));
-      const prevEnd   = toLocalISODate(new Date(year, month, 0));
+      let query = supabase.from('waste_reports')
+        .select('report_date, meal_type, plate_waste, kitchen_uncooked, kitchen_cooked, caterer_id')
+        .gte('report_date', startDate)
+        .lte('report_date', endDate);
 
-      const cols = 'plate_waste,kitchen_uncooked,kitchen_cooked,caterer_id';
+      if (selectedCaterer !== 'all') query = query.eq('caterer_id', selectedCaterer);
 
-      // This month — selected caterer (or all)
-      let q = supabase.from('waste_reports').select(cols)
-        .gte('report_date', thisStart).lte('report_date', thisEnd);
-      if (selectedId !== 'all') q = q.eq('caterer_id', selectedId);
-      const { data: t } = await q;
-
-      // Prev month — same caterer
-      let q2 = supabase.from('waste_reports').select(cols)
-        .gte('report_date', prevStart).lte('report_date', prevEnd);
-      if (selectedId !== 'all') q2 = q2.eq('caterer_id', selectedId);
-      const { data: p } = await q2;
-
-      // All caterers this month (for dynamic baseline)
-      const { data: a } = await supabase.from('waste_reports').select(cols)
-        .gte('report_date', thisStart).lte('report_date', thisEnd);
-
+      const { data, error } = await query;
+      if (error) console.error("Error fetching reports:", error);
+      
       if (!cancelled) {
-        setThisMonthRows(t || []);
-        setPrevMonthRows(p || []);
-        setAllCatRows(a || []);
+        setReportRows(data || []);
         setLoading(false);
       }
     };
-    load();
+    loadData();
     return () => { cancelled = true; };
-  }, [currentDate, selectedId]);
+  }, [currentDate, selectedCaterer, year, month]);
 
-  // ── Derived metrics ────────────────────────────────────────────────────
+  // ── Merge Factors & Calculate ────────────────────────────────────────────
+  const allFactors = useMemo(() => {
+    const merged = { baseline: { ...DEFAULT_FACTORS.baseline }, project: { ...DEFAULT_FACTORS.project } };
+    customFactors.forEach(f => {
+      merged[f.category][f.id] = { id: f.id, label: `${f.name} (Custom)`, value: Number(f.calculated_ef), isDefault: false };
+    });
+    return merged;
+  }, [customFactors]);
+
   const metrics = useMemo(() => {
-    const cur  = summarise(thisMonthRows);
-    const prev = summarise(prevMonthRows);
-    const base = summarise(allCatRows);   // dynamic baseline across all caterers
+    let uncooked = 0, cooked = 0, plate = 0;
 
-    // Month-over-month change in waste per meal (the honest metric)
-    const momChange = prev.wastePerMeal > 0
-      ? ((cur.wastePerMeal - prev.wastePerMeal) / prev.wastePerMeal) * 100
-      : null;
+    reportRows.forEach(r => {
+      uncooked += Number(r.kitchen_uncooked || 0);
+      cooked   += Number(r.kitchen_cooked || 0);
+      plate    += Number(r.plate_waste || 0);
+    });
 
-    // Carbon generated this month
-    const co2kg      = cur.totalWaste * CO2_PER_KG_WASTE;
-    const co2tonnes  = co2kg / KG_PER_TONNE;
-    const trees      = Math.round(co2kg / CO2_PER_TREE_YR);
-    const cars       = (co2kg / CO2_PER_CAR_YR).toFixed(2);
+    const totalWaste = uncooked + cooked + plate; 
+    const uniqueDays = new Set(reportRows.map(r => r.report_date)).size || 1; 
+    const dailyAverage = totalWaste / uniqueDays;
+    const isBWG = dailyAverage >= BWG_THRESHOLD_KG;
 
-    // Carbon credits: saving vs dynamic baseline (waste per meal)
-    // Only award if performing BETTER than baseline
-    const savedKgPerMeal = base.wastePerMeal - cur.wastePerMeal;
-    const creditsTonnes  = savedKgPerMeal > 0
-      ? Number(((savedKgPerMeal * cur.mealCount * CO2_PER_KG_WASTE) / KG_PER_TONNE).toFixed(3))
-      : 0;
+    const baseEF = allFactors.baseline[baselineMethod]?.value ?? DEFAULT_FACTORS.baseline.unmanaged.value;
+    const projEF = allFactors.project[projectMethod]?.value ?? DEFAULT_FACTORS.project.onsite_biogas.value;
 
-    return { cur, prev, momChange, co2kg, co2tonnes, trees, cars, creditsTonnes, baseline: base.wastePerMeal };
-  }, [thisMonthRows, prevMonthRows, allCatRows]);
+    const baselineEmissions = (uncooked * (baseEF * 0.9)) + (cooked * (baseEF * 1.1)) + (plate * (baseEF * 1.1));
+    const projectEmissions = (uncooked * (projEF * 0.9)) + (cooked * (projEF * 1.1)) + (plate * (projEF * 1.1));
 
-  // ── Helpers ────────────────────────────────────────────────────────────
-  const fmt1 = (n) => Number(n).toFixed(1);
-  const fmt3 = (n) => Number(n).toFixed(3);
+    const emissionsAvoided = baselineEmissions - projectEmissions;
+    const credits = emissionsAvoided > 0 ? emissionsAvoided / KG_PER_TONNE : 0;
 
-  const MomBadge = ({ pct }) => {
-    if (pct === null) return <span style={styles.badge('#888')}>No prev data</span>;
-    const improved = pct < 0;
-    const same     = Math.abs(pct) < 0.5;
-    if (same) return <span style={styles.badge('#888')}><Minus size={11}/> No change</span>;
-    return (
-      <span style={styles.badge(improved ? '#2ecc71' : '#e74c3c')}>
-        {improved ? <TrendingDown size={11}/> : <TrendingUp size={11}/>}
-        {' '}{Math.abs(pct).toFixed(1)}% {improved ? 'better' : 'worse'} vs last month
-      </span>
-    );
+    return { 
+      totalWaste, dailyAverage, uniqueDays, isBWG, uncooked, cooked, plate,
+      baselineEmissions, projectEmissions, emissionsAvoided, credits,
+      uPct: totalWaste ? (uncooked / totalWaste) * 100 : 0,
+      cPct: totalWaste ? (cooked / totalWaste) * 100 : 0,
+      pPct: totalWaste ? (plate / totalWaste) * 100 : 0
+    };
+  }, [reportRows, baselineMethod, projectMethod, allFactors]);
+
+  const fmt = (n, decimals = 1) => Number(n).toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+  
+  const currentCalculatedEF = useMemo(() => {
+    return Number(calcForm.process_ef) + (Number(calcForm.transport_km) * Number(calcForm.transport_ef));
+  }, [calcForm]);
+
+  // ── Toast Trigger ────────────────────────────────────────────────────────
+  const showToast = (message, type = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, type, message }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3000);
   };
 
-  const { cur, momChange, co2kg, co2tonnes, trees, cars, creditsTonnes, baseline } = metrics;
+  // ── Handlers ─────────────────────────────────────────────────────────────
+  const handleSaveFactor = async () => {
+    if (!calcForm.name.trim()) return;
+    setSavingEF(true);
+    
+    const { data, error } = await supabase.from('custom_emission_factors').insert([{
+      name: calcForm.name,
+      category: calcForm.category,
+      process_ef: calcForm.process_ef,
+      transport_km: calcForm.transport_km,
+      transport_ef: calcForm.transport_ef,
+      calculated_ef: currentCalculatedEF
+    }]).select().single();
+
+    if (error) {
+      console.error("Supabase Save Error:", error);
+      showToast(`Database Error: ${error.message}`, 'error');
+    } else if (data) {
+      setCustomFactors([data, ...customFactors]);
+      if (data.category === 'baseline') setBaselineMethod(data.id);
+      else setProjectMethod(data.id);
+      
+      setCalcForm({ category: 'project', name: '', process_ef: -0.1, transport_km: 0, transport_ef: 0.00015 });
+      setIsModalOpen(false);
+      showToast('Configuration preset saved successfully!', 'success');
+    }
+    
+    setSavingEF(false);
+  };
+
+  const handleDeleteFactor = async (id, category) => {
+    const { error } = await supabase.from('custom_emission_factors').delete().eq('id', id);
+    
+    if (error) {
+      console.error("Delete Error:", error);
+      showToast(`Failed to remove parameter: ${error.message}`, 'error');
+    } else {
+      setCustomFactors(customFactors.filter(f => f.id !== id));
+      if (baselineMethod === id) setBaselineMethod('unmanaged');
+      if (projectMethod === id) setProjectMethod('onsite_biogas');
+      showToast('Configuration preset removed.', 'success');
+    }
+  };
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', padding: '4px 0' }}>
-
-      {/* ── Header row ──────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 10 }}>
+    <div className="carbon-view-wrapper">
+      
+      {/* Header */}
+      <div className="carbon-header">
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.3rem', color: 'var(--text-main)', fontWeight: 800 }}>
-            Carbon Insights
-          </h2>
-          <p style={{ margin: '3px 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-            Based on waste-per-meal — comparisons are meaningful even with few entries
-          </p>
+          <h2>SWM 2026 Compliance & Carbon Insights</h2>
+          <p className="carbon-subtitle">Track mess waste limits and potential carbon credits</p>
         </div>
-
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Month picker */}
-          <div style={styles.navRow}>
-            <button style={styles.navBtn} onClick={() => setCurrentDate(new Date(year, month - 1, 1))}>‹</button>
-            <span style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--text-main)', minWidth: 110, textAlign: 'center' }}>
-              {monthNames[month]} {year}
-            </span>
-            <button style={styles.navBtn} onClick={() => setCurrentDate(new Date(year, month + 1, 1))}>›</button>
+        <div className="carbon-controls">
+          <div className="pill-nav">
+            <button className="icon-btn" onClick={() => setCurrentDate(new Date(year, month - 1, 1))}><ChevronLeft size={16} /></button>
+            <span className="pill-label">{monthNames[month]} {year}</span>
+            <button className="icon-btn" onClick={() => setCurrentDate(new Date(year, month + 1, 1))}><ChevronRight size={16} /></button>
           </div>
-
-          {/* Caterer picker */}
-          <select
-            value={selectedId}
-            onChange={e => setSelectedId(e.target.value)}
-            className="header-select"
-          >
-            <option value="all">All Caterers</option>
-            {caterersList.map(c => (
-              <option key={c.caterer_id} value={c.caterer_id}>{c.name}</option>
-            ))}
-          </select>
         </div>
       </div>
 
+      {/* SWM 2026 Alert */}
+      {metrics.isBWG && (
+        <div className="credits-banner" style={{ background: 'rgba(231, 76, 60, 0.05)', borderColor: 'rgba(231, 76, 60, 0.3)', padding: '16px 24px', marginTop: '0' }}>
+          <ShieldAlert size={24} color="var(--danger)" style={{ flexShrink: 0 }} />
+          <div>
+            <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--danger)', marginBottom: '4px' }}>BWG Threshold Exceeded</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+              Generating an average of <strong>{fmt(metrics.dailyAverage)} kg/day</strong> over {metrics.uniqueDays} operating days this month. Under SWM Rules 2026, the campus is legally classified as a Bulk Waste Generator and must process this wet waste on-site.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <div className="pill-filter-group">
+        <button className={`filter-pill ${selectedCaterer === 'all' ? 'active' : ''}`} onClick={() => setSelectedCaterer('all')}>All Campus Caterers</button>
+        {caterersList.map(c => (
+          <button key={c.caterer_id} className={`filter-pill ${selectedCaterer === c.caterer_id ? 'active' : ''}`} onClick={() => setSelectedCaterer(c.caterer_id)}>
+            {c.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Configurations */}
+      <div className="carbon-config-panel">
+        <div className="config-group">
+          <label className="form-label"><Factory size={14}/> Baseline Scenario</label>
+          <select className="form-select" value={baselineMethod} onChange={(e) => setBaselineMethod(e.target.value)}>
+            {Object.values(allFactors.baseline).map(f => (
+              <option key={f.id} value={f.id}>{f.label} (EF: {fmt(f.value, 3)})</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="config-group">
+          <label className="form-label"><Leaf size={14}/> Project Disposal</label>
+          <div className="form-group-inline">
+            <select className="form-select flex-fill" value={projectMethod} onChange={(e) => setProjectMethod(e.target.value)}>
+              {Object.values(allFactors.project).map(f => (
+                <option key={f.id} value={f.id}>{f.label} (EF: {fmt(f.value, 3)})</option>
+              ))}
+            </select>
+            <button className="btn-ghost btn-icon-only" onClick={() => { setIsModalOpen(true); setActiveTab('calculator'); }} title="Manage EF Parameters">
+              <Settings size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Stats */}
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
-          <Loader2 size={28} color="var(--primary-green)" style={{ animation: 'spin 1s linear infinite' }} />
-        </div>
-      ) : cur.mealCount === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-          No waste reports found for this period.
-        </div>
+        <div className="admin-loading"><div className="spin"><Wind size={24} /></div> Analyzing SWM compliance...</div>
+      ) : metrics.totalWaste === 0 ? (
+        <div className="admin-empty"><Trash2 size={32} className="admin-empty-icon" /><p>No waste recorded for this period.</p></div>
       ) : (
         <>
-          {/* ── Row 1: Core waste metric ─────────────────────────────── */}
-          <div style={styles.card('var(--bg-card)')}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <div style={styles.label}>Waste per Meal</div>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 4 }}>
-                  <span style={{ fontSize: '2.4rem', fontWeight: 900, color: 'var(--text-main)', lineHeight: 1 }}>
-                    {fmt1(cur.wastePerMeal)}
-                  </span>
-                  <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>kg / meal</span>
-                </div>
-                <div style={{ marginTop: 8 }}>
-                  <MomBadge pct={momChange} />
-                </div>
+          <div className="stats-grid carbon-stats-grid">
+            <div className="stat-card">
+              <div className="stat-icon yellow"><Trash2 size={20} /></div>
+              <div className="stat-label">Monthly Wet Waste</div>
+              <div className="stat-value">{fmt(metrics.totalWaste)} <span className="stat-unit">kg</span></div>
+              <div className="stacked-bar-container">
+                <div className="stacked-bar-segment green" style={{ width: `${metrics.uPct}%` }} title={`Uncooked: ${fmt(metrics.uPct)}%`} />
+                <div className="stacked-bar-segment blue" style={{ width: `${metrics.cPct}%` }} title={`Cooked: ${fmt(metrics.cPct)}%`} />
+                <div className="stacked-bar-segment red" style={{ width: `${metrics.pPct}%` }} title={`Plate: ${fmt(metrics.pPct)}%`} />
               </div>
-
-              <div style={{ textAlign: 'right' }}>
-                <div style={styles.label}>Reports this month</div>
-                <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)' }}>{cur.mealCount}</div>
-                <div style={styles.label}>Total waste</div>
-                <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{fmt1(cur.totalWaste)} kg</div>
+              <div className="stacked-bar-legend">
+                <span><span className="legend-dot green"></span> Uncooked</span>
+                <span><span className="legend-dot blue"></span> Cooked</span>
+                <span><span className="legend-dot red"></span> Plate</span>
               </div>
             </div>
 
-            {/* Baseline bar */}
-            {baseline > 0 && (
-              <div style={{ marginTop: 18 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>
-                  <span>Your avg vs all caterers baseline</span>
-                  <span>Baseline: {fmt1(baseline)} kg/meal</span>
-                </div>
-                <div style={{ background: 'var(--border-color)', borderRadius: 99, height: 8, overflow: 'hidden' }}>
-                  <div style={{
-                    height: '100%', borderRadius: 99,
-                    width: `${Math.min((cur.wastePerMeal / (baseline * 1.5)) * 100, 100)}%`,
-                    background: cur.wastePerMeal <= baseline ? '#2ecc71' : '#e74c3c',
-                    transition: 'width 0.6s ease',
-                  }} />
-                </div>
-                <div style={{ fontSize: '0.72rem', color: cur.wastePerMeal <= baseline ? '#2ecc71' : '#e74c3c', marginTop: 5, fontWeight: 600 }}>
-                  {cur.wastePerMeal <= baseline
-                    ? `✓ ${fmt1(baseline - cur.wastePerMeal)} kg/meal below baseline`
-                    : `✗ ${fmt1(cur.wastePerMeal - baseline)} kg/meal above baseline`}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Row 2: Carbon + Credits side by side ─────────────────── */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
-
-            {/* CO2 generated */}
-            <div style={styles.card('var(--bg-card)')}>
-              <div style={styles.label}>CO₂ Generated</div>
-              <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#e67e22', lineHeight: 1, margin: '6px 0 2px' }}>
-                {fmt1(co2kg)} <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>kg</span>
-              </div>
-              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 14 }}>
-                = {fmt3(co2tonnes)} tonnes CO₂
-              </div>
-
-              <div style={{ display: 'flex', gap: 16 }}>
-                <div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>🌳 {trees}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>trees needed<br/>to absorb</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-main)' }}>🚗 {cars}</div>
-                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>car-years<br/>equivalent</div>
-                </div>
-              </div>
+            <div className="stat-card">
+              <div className="stat-icon red"><AlertCircle size={20} /></div>
+              <div className="stat-label">Monthly Baseline Emissions</div>
+              <div className="stat-value">{fmt(metrics.baselineEmissions)} <span className="stat-unit">kg CO₂e</span></div>
+              <div className="stat-sub">Estimated emissions from municipal landfilling</div>
             </div>
 
-            {/* Carbon credits */}
-            <div style={styles.card(creditsTonnes > 0 ? 'rgba(46,204,113,0.07)' : 'var(--bg-card)', creditsTonnes > 0 ? '1px solid rgba(46,204,113,0.3)' : '1px solid var(--border-color)')}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                <Leaf size={14} color={creditsTonnes > 0 ? '#2ecc71' : '#888'} />
-                <span style={styles.label}>Carbon Credits Earned</span>
-              </div>
-
-              {creditsTonnes > 0 ? (
-                <>
-                  <div style={{ fontSize: '1.9rem', fontWeight: 900, color: '#2ecc71', lineHeight: 1, margin: '4px 0 2px' }}>
-                    {fmt3(creditsTonnes)}
-                  </div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 10 }}>
-                    tonnes CO₂ saved vs baseline
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: '#2ecc71', fontWeight: 600, lineHeight: 1.5 }}>
-                    ✓ Performing better than the<br/>avg of all caterers this month
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div style={{ fontSize: '1.9rem', fontWeight: 900, color: 'var(--text-muted)', lineHeight: 1, margin: '4px 0 2px' }}>
-                    0.000
-                  </div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
-                    No credits — above the avg baseline.<br/>
-                    Reduce by {fmt1(cur.wastePerMeal - baseline)} kg/meal to start earning.
-                  </div>
-                </>
-              )}
+            <div className="stat-card">
+              <div className="stat-icon blue"><CheckCircle size={20} /></div>
+              <div className="stat-label">Monthly Project Emissions</div>
+              <div className="stat-value">{fmt(metrics.projectEmissions)} <span className="stat-unit">kg CO₂e</span></div>
+              <div className="stat-sub">Estimated emissions with selected intervention</div>
             </div>
           </div>
 
-          {/* ── Footer note ──────────────────────────────────────────── */}
-          <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 10, background: 'var(--bg-input, rgba(0,0,0,0.03))', fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.6 }}>
-            <strong>Methodology:</strong> CO₂ = total waste × 2.5 (FAO/WRAP standard) &nbsp;·&nbsp;
-            Credits earned only when waste/meal is below the dynamic average of all caterers this month &nbsp;·&nbsp;
-            1 credit = 1 tonne CO₂ saved
+          <div className={`credits-banner ${metrics.credits > 0 ? 'success' : 'neutral'}`}>
+            <div className="credits-banner-icon"><Leaf size={32} /></div>
+            <div className="credits-banner-content">
+              <div className="credits-label">Potential Carbon Credits Generated (This Month)</div>
+              <div className="credits-value">{fmt(metrics.credits, 3)} <span className="credits-unit">Tonnes CO₂e</span></div>
+              <div className="credits-sub">
+                {metrics.credits > 0 ? `Successfully avoided ${fmt(metrics.emissionsAvoided)} kg of carbon emissions compared to standard landfilling.` : `No credits generated. Project emissions exceed or match baseline emissions.`}
+              </div>
+            </div>
           </div>
         </>
       )}
 
-      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      {/* EF Modal */}
+      {isModalOpen && (
+        <div className="modal-backdrop">
+          <div className="modal-box ef-modal">
+            <div className="ef-modal-header">
+              <div className="modal-title" style={{ margin: 0 }}>Emission Factor Manager</div>
+              <div className="ef-tabs">
+                <button className={`ef-tab ${activeTab === 'calculator' ? 'active' : ''}`} onClick={() => setActiveTab('calculator')}>Calculate New</button>
+                <button className={`ef-tab ${activeTab === 'manage' ? 'active' : ''}`} onClick={() => setActiveTab('manage')}>Manage Saved</button>
+              </div>
+            </div>
+
+            {activeTab === 'calculator' ? (
+              <div className="ef-calculator-form">
+                <div className="form-group">
+                  <label className="form-label">Category</label>
+                  <select className="form-select" value={calcForm.category} onChange={e => setCalcForm({...calcForm, category: e.target.value})}>
+                    <option value="project">Project Scenario (Intervention)</option>
+                    <option value="baseline">Baseline Scenario (Status Quo)</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Configuration Name</label>
+                  <input type="text" className="form-input" placeholder="e.g., EBWGR Off-Site Processing" value={calcForm.name} onChange={e => setCalcForm({...calcForm, name: e.target.value})} />
+                </div>
+
+                <div className="ef-calc-grid">
+                  <div className="form-group">
+                    <label className="form-label">Process Emissions (kg CO₂e/kg)</label>
+                    <input type="number" step="0.01" className="form-input" value={calcForm.process_ef} onChange={e => setCalcForm({...calcForm, process_ef: e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Transport Distance (km)</label>
+                    <input type="number" className="form-input" value={calcForm.transport_km} onChange={e => setCalcForm({...calcForm, transport_km: e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="ef-result-box">
+                  <div className="ef-formula">EF = Process + (Distance × 0.00015)</div>
+                  <div className="ef-final-value">{fmt(currentCalculatedEF, 4)} <span>Final EF</span></div>
+                </div>
+
+                <div className="modal-actions">
+                  <button className="btn-ghost" onClick={() => setIsModalOpen(false)}>Cancel</button>
+                  <button className="btn-primary" onClick={handleSaveFactor} disabled={savingEF || !calcForm.name.trim()}>
+                    {savingEF ? <Loader2 size={16} className="spin" /> : <Plus size={16} />} Save Factor
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="ef-manage-list">
+                {customFactors.length === 0 ? (
+                  <div className="admin-empty" style={{ padding: '30px 0' }}>No custom factors saved.</div>
+                ) : (
+                  customFactors.map(f => (
+                    <div key={f.id} className="ef-list-item">
+                      <div className="ef-item-info">
+                        <strong>{f.name}</strong>
+                        <span className={`role-pill ${f.category === 'baseline' ? 'admin' : 'caterer'}`}>{f.category}</span>
+                        <div className="ef-item-sub">EF: {fmt(f.calculated_ef, 4)} (Process: {f.process_ef}, Distance: {f.transport_km}km)</div>
+                      </div>
+                      <button className="icon-btn" style={{ color: 'var(--danger)', borderColor: 'transparent' }} onClick={() => handleDeleteFactor(f.id, f.category)}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))
+                )}
+                <div className="modal-actions" style={{ marginTop: '20px' }}>
+                  <button className="btn-ghost" onClick={() => setIsModalOpen(false)}>Close</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <Toast toasts={toasts} />
+
     </div>
   );
-};
-
-// ── Style helpers ──────────────────────────────────────────────────────────
-const styles = {
-  card: (bg, border) => ({
-    background: bg,
-    border: border || '1px solid var(--border-color)',
-    borderRadius: 16,
-    padding: '20px 22px',
-    boxShadow: 'var(--shadow)',
-  }),
-  label: {
-    fontSize: '0.72rem',
-    fontWeight: 700,
-    letterSpacing: '0.06em',
-    textTransform: 'uppercase',
-    color: 'var(--text-muted)',
-  },
-  badge: (color) => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 4,
-    padding: '3px 9px',
-    borderRadius: 99,
-    fontSize: '0.75rem',
-    fontWeight: 700,
-    background: color + '22',
-    color: color,
-  }),
-  navRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 6,
-    background: 'var(--bg-card)',
-    border: '1px solid var(--border-color)',
-    borderRadius: 10,
-    padding: '4px 8px',
-  },
-  navBtn: {
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontSize: '1.1rem',
-    color: 'var(--text-main)',
-    padding: '0 4px',
-    lineHeight: 1,
-  },
 };
 
 export default CarbonView;

@@ -1574,7 +1574,7 @@ body:not([data-theme='dark']) .game-frame { border-color: #fff; }
     align-items: center;
     gap: 0.75rem;
     background: var(--bg-card);
-    padding: 0.3rem 0.8rem;
+    padding: 0.3rem 0.5rem;
     border-radius: 2rem;
     border: 1px solid var(--border-color);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);

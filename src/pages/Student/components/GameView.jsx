@@ -2,6 +2,16 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { Trophy, Play, RotateCcw, Volume2, VolumeX, Keyboard, Lock } from 'lucide-react';
 
+const DpadBtn = ({ label, onPress }) => (
+  <button
+    className="dpad-btn"
+    onTouchStart={(e) => { e.preventDefault(); onPress(); }}
+    onClick={onPress}
+  >
+    {label}
+  </button>
+);
+
 const GameView = ({ credits, onConsumeCredit }) => {
   const [gameState, setGameState] = useState('menu');
   
@@ -10,6 +20,13 @@ const GameView = ({ credits, onConsumeCredit }) => {
 
   const [isMuted, setIsMuted] = useState(false);
   const [currentTheme, setCurrentTheme] = useState('light');
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const [userId, setUserId] = useState(null);
   const [highScore, setHighScore] = useState(0);
@@ -266,6 +283,15 @@ const GameView = ({ credits, onConsumeCredit }) => {
     }
   };
 
+  const handleMobileDir = (dir) => {
+    if (gameState !== 'playing') return;
+    const cur = directionRef.current;
+    if (dir === 'UP'    && cur !== 'DOWN')  nextDirectionRef.current = 'UP';
+    if (dir === 'DOWN'  && cur !== 'UP')    nextDirectionRef.current = 'DOWN';
+    if (dir === 'LEFT'  && cur !== 'RIGHT') nextDirectionRef.current = 'LEFT';
+    if (dir === 'RIGHT' && cur !== 'LEFT')  nextDirectionRef.current = 'RIGHT';
+  };
+
   return (
     <div className="arcade-mode-container">
       <div className="game-dashboard-layout">
@@ -277,61 +303,66 @@ const GameView = ({ credits, onConsumeCredit }) => {
              
              <div className="score-pill">
                 <span>TOKENS: {credits}</span>
-                <span style={{opacity:0.5}}>|</span>
+                <span className="pill-sep">|</span>
                 <span>SCORE: {score.toString().padStart(3, '0')}</span>
-                <span style={{opacity:0.5}}>|</span>
+                <span className="pill-sep">|</span>
                 <span>BEST: {highScore}</span>
              </div>
              
-             <div style={{width:'40px'}}></div>
+             <div className="score-pill-spacer"></div>
           </div>
 
           <div className="game-frame">
-            <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} style={{ display: 'block', width: '100%', height: '100%' }} />
+            <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="game-canvas-el" />
             {gameState !== 'playing' && (
-              <div style={{position:'absolute', inset:0, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(4px)', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center'}}>
-                <h1 style={{fontSize:'3.5rem', fontWeight:'900', color:'white', marginBottom:'20px', textShadow:'0 0 20px rgba(46,204,113,0.5)'}}>
+              <div className="game-overlay">
+                <h1 className="game-overlay-title">
                   {gameState === 'gameover' ? 'GAME OVER' : 'SNAKE'}
                 </h1>
                 {gameState === 'gameover' && (
-                   <div style={{fontSize:'1.5rem', color:'white', marginBottom:'20px', textAlign: 'center'}}>
-                     Final Score: <span style={{color:'#e74c3c', fontWeight:'bold'}}>{score}</span><br/>
-                     <span style={{fontSize: '1rem', color: '#aaa', fontWeight: 'normal'}}>Total Attempts: {attemptsCount}</span>
-                   </div>
+                  <div className="game-over-info">
+                    Final Score: <span className="score-highlight">{score}</span><br/>
+                    <span className="attempts-label">Total Attempts: {attemptsCount}</span>
+                  </div>
                 )}
-                <button onClick={startGame} disabled={credits === 0} style={{
-                  padding:'16px 40px', borderRadius:'50px', border:'none',
-                  background: credits > 0 ? '#2ecc71' : '#555', color:'white',
-                  fontSize:'1.1rem', fontWeight:'bold', cursor: credits > 0 ? 'pointer' : 'not-allowed',
-                  display:'flex', alignItems:'center', gap:'10px'
-                }}>
-                   {credits > 0 ? (
-                     <>{gameState === 'gameover' ? <RotateCcw size={20}/> : <Play size={20}/>} {gameState === 'gameover' ? 'RETRY' : 'PLAY'}</>
-                   ) : (
-                     <><Lock size={20}/> NO TOKENS</>
-                   )}
+                <button onClick={startGame} disabled={credits === 0} className="game-start-btn">
+                  {credits > 0 ? (
+                    <>{gameState === 'gameover' ? <RotateCcw size={20}/> : <Play size={20}/>} {gameState === 'gameover' ? 'RETRY' : 'PLAY'}</>
+                  ) : (
+                    <><Lock size={20}/> NO TOKENS</>
+                  )}
                 </button>
               </div>
             )}
           </div>
-          <div style={{
-            marginTop: '20px',
-            padding: '8px 20px',
-            borderRadius: '20px',
-            background: currentTheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-            backdropFilter: 'blur(4px)',
-            border: currentTheme === 'dark' ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(0, 0, 0, 0.05)',
-            color: currentTheme === 'dark' ? '#ccc' : '#666',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            fontSize: '0.85rem',
-            fontWeight: '400',
-            boxShadow: currentTheme === 'dark' ? '0 4px 10px rgba(0,0,0,0.3)' : 'none'
-          }}>
-             <Keyboard size={16} /> 
-             <span>Use <b>Arrow Keys</b> to Move</span>
-          </div>
+          {/* Desktop hint */}
+          {!isMobile && (
+            <div className="keyboard-hint">
+              <Keyboard size={16} />
+              <span>Use <b>Arrow Keys</b> to Move</span>
+            </div>
+          )}
+
+          {/* Mobile D-pad */}
+          {isMobile && (
+            <div className="dpad-grid">
+              <div className="dpad-up">
+                <DpadBtn label="▲" onPress={() => handleMobileDir('UP')} />
+              </div>
+              <div className="dpad-left">
+                <DpadBtn label="◀" onPress={() => handleMobileDir('LEFT')} />
+              </div>
+              <div className="dpad-center">
+                <div className="dpad-center-dot" />
+              </div>
+              <div className="dpad-right">
+                <DpadBtn label="▶" onPress={() => handleMobileDir('RIGHT')} />
+              </div>
+              <div className="dpad-down">
+                <DpadBtn label="▼" onPress={() => handleMobileDir('DOWN')} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="leaderboard-panel">
@@ -341,15 +372,15 @@ const GameView = ({ credits, onConsumeCredit }) => {
           </div>
           <div className="lb-list">
             {leaderboard.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>No scores yet!</div>
+              <div className="lb-empty">No scores yet!</div>
             ) : (
               leaderboard.map((p, idx) => (
                 <div key={idx} className={`lb-item ${p.id === userId ? 'current-user' : ''}`}>
                   <div className="lb-rank">{idx + 1}</div>
-                  <div className="player-name" style={{flex:1}}>
+                  <div className="player-name">
                     {p.id === userId ? 'You' : p.name}
                   </div>
-                  <div className="player-score" style={{fontWeight:700}}>{p.score}</div>
+                  <div className="player-score">{p.score}</div>
                 </div>
               ))
             )}

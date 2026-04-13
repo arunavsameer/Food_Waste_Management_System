@@ -1543,10 +1543,12 @@ body:not([data-theme='dark']) .game-frame { border-color: #fff; }
   /* Mobile Top Bar Container */
   .mobile-top-bar {
     display: flex;
+    vertical-align: center;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 1rem;
-    padding: 0.5rem 0;
+    margin-bottom: 2rem;
+    /* margin-top: 0rem; */
+    padding: 0rem 0;
     width: 100%;
   }
   
@@ -1566,6 +1568,7 @@ body:not([data-theme='dark']) .game-frame { border-color: #fff; }
     align-items: center;
     justify-content: center;
     line-height: 1;
+    margin-top: 1rem;
   }
   
   /* Mobile Profile Section */

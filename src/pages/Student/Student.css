@@ -1546,7 +1546,7 @@ body:not([data-theme='dark']) .game-frame { border-color: #fff; }
     vertical-align: center;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
+    margin-bottom: 3rem;
     /* margin-top: 0rem; */
     padding: 0rem 0;
     width: 100%;

@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { ChevronLeft, ChevronRight, Edit3, Save, X, Copy, Upload } from 'lucide-react';
-import { useMenuParse } from '../../../context/MenuParseContext'; // <-- NEW IMPORT
+import { ChevronLeft, ChevronRight, Edit3, Save, X, Copy, Upload, Trash2 } from 'lucide-react';
+import { useMenuParse } from '../../../context/MenuParseContext';
 
-// Helper to get Monday of a given date's week
 const getMonday = (d) => {
   const date = new Date(d);
   const day = date.getDay();
@@ -28,35 +27,47 @@ const addDays = (date, days) => {
 const MEALS = ['breakfast', 'lunch', 'dinner'];
 
 const MenuView = ({ triggerToast }) => {
-  // Pull background parsing tools from our new Context
   const { isParsing, parsedRawData, startParsing, clearParsedData } = useMenuParse();
   const fileInputRef = useRef(null);
 
-  const [currentMonday, setCurrentMonday] = useState(getMonday(new Date()));
-  const [foodType, setFoodType] = useState('regular'); 
+  const [currentMonday, setCurrentMonday] = useState(() => {
+    const saved = localStorage.getItem('menu_currentMonday');
+    return saved ? new Date(saved) : getMonday(new Date());
+  });
+
+  const [foodType, setFoodType] = useState(() => {
+    return localStorage.getItem('menu_foodType') || 'regular';
+  }); 
+
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [menuData, setMenuData] = useState({});
 
-  // NEW: Initialize Draft and Edit states from LocalStorage so they survive reloads
   const [isEditing, setIsEditing] = useState(() => {
     return localStorage.getItem('menu_isEditing') === 'true';
   });
+
+  // FIX 1: Create a ref to track real-time editing state to prevent async closure bugs
+  const isEditingRef = useRef(isEditing);
+  useEffect(() => {
+    isEditingRef.current = isEditing;
+  }, [isEditing]);
   
   const [draftData, setDraftData] = useState(() => {
     const saved = localStorage.getItem('menu_draftData');
     return saved ? JSON.parse(saved) : {};
   });
 
-  // NEW: Auto-save draft changes to browser memory
   useEffect(() => {
     localStorage.setItem('menu_isEditing', isEditing);
+    localStorage.setItem('menu_foodType', foodType);
+    localStorage.setItem('menu_currentMonday', currentMonday.toISOString());
     if (isEditing) {
       localStorage.setItem('menu_draftData', JSON.stringify(draftData));
     } else {
       localStorage.removeItem('menu_draftData');
     }
-  }, [isEditing, draftData]);
+  }, [isEditing, draftData, foodType, currentMonday]);
 
   const days = Array.from({ length: 14 }).map((_, i) => addDays(currentMonday, i));
   const week1 = days.slice(0, 7);
@@ -85,8 +96,9 @@ const MenuView = ({ triggerToast }) => {
       
       setMenuData(mappedData);
       
-      // ONLY overwrite draft if the user isn't currently in the middle of editing
-      if (!isEditing) {
+      // FIX 2: Use the Ref. If applyParsedDataToDraft flipped isEditing to true 
+      // while we were waiting for Supabase, this prevents it from overwriting the AI data.
+      if (!isEditingRef.current) {
         setDraftData(mappedData);
       }
     } catch (error) {
@@ -101,13 +113,13 @@ const MenuView = ({ triggerToast }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentMonday, foodType]);
 
-  // NEW: Listen for background parsing completion
   useEffect(() => {
-    if (parsedRawData && days.length > 0) {
+    if (parsedRawData) {
       applyParsedDataToDraft(parsedRawData);
-      clearParsedData(); // Clear it from memory so we don't apply it twice
+      clearParsedData(); 
     }
-  }, [parsedRawData, days]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsedRawData]);
 
   const handleDraftChange = (dateStr, mealType, value) => {
     const key = `${dateStr}_${mealType}`;
@@ -132,12 +144,16 @@ const MenuView = ({ triggerToast }) => {
         const textValue = draftItem.menu_items?.trim() || '';
         const originalText = originalItem.menu_items?.trim() || '';
 
-        if (draftItem.id) {
+        // FIX 3: Prioritize originalItem.id. This ensures we don't accidentally try 
+        // to insert a duplicate if the draft lost the ID during the parsing race condition.
+        const targetId = originalItem.id || draftItem.id;
+
+        if (targetId) {
           if (textValue !== originalText) {
             if (textValue === '') {
-              updateOrDeletePromises.push(supabase.from('weekly_menu').delete().eq('id', draftItem.id));
+              updateOrDeletePromises.push(supabase.from('weekly_menu').delete().eq('id', targetId));
             } else {
-              updateOrDeletePromises.push(supabase.from('weekly_menu').update({ menu_items: textValue }).eq('id', draftItem.id));
+              updateOrDeletePromises.push(supabase.from('weekly_menu').update({ menu_items: textValue }).eq('id', targetId));
             }
           }
         } else {
@@ -153,7 +169,7 @@ const MenuView = ({ triggerToast }) => {
       if (inserts.length > 0) await supabase.from('weekly_menu').insert(inserts);
 
       triggerToast('success', 'Menu updated successfully!');
-      setIsEditing(false); // This automatically wipes the localStorage draft via the useEffect
+      setIsEditing(false); 
       fetchMenuData(); 
       
     } catch (error) {
@@ -178,7 +194,7 @@ const MenuView = ({ triggerToast }) => {
           const [y, m, d] = item.date.split('-');
           const futureDateStr = formatDate(addDays(new Date(y, m - 1, d), 14));
           const key = `${futureDateStr}_${item.meal_type}`;
-          if (!menuData[key]?.id) newDraft[key] = { ...newDraft[key], menu_items: item.menu_items };
+          newDraft[key] = { ...newDraft[key], menu_items: item.menu_items };
         });
         return newDraft;
       });
@@ -190,19 +206,31 @@ const MenuView = ({ triggerToast }) => {
     }
   };
 
-  // NEW: Updated to handle the strict { week1: [], week2: [] } JSON format
-  // NEW: Robust mapping logic that safely merges both weeks
+  const handleClearMenu = () => {
+    const confirmClear = window.confirm("Are you sure you want to clear the entire menu for these 2 weeks?");
+    if (!confirmClear) return;
+
+    setDraftData(prev => {
+      const newDraft = { ...prev };
+      days.forEach(day => {
+        const dateStr = formatDate(day);
+        MEALS.forEach(meal => {
+          const key = `${dateStr}_${meal}`;
+          newDraft[key] = { ...newDraft[key], menu_items: '' };
+        });
+      });
+      return newDraft;
+    });
+  };
+
   const applyParsedDataToDraft = (parsedData) => {
     setDraftData(prevDraft => {
-      // Start with a clean copy of the current draft
       const mergedDraft = { ...prevDraft };
 
-      // Helper function that strictly mutates the mergedDraft object
       const applyWeek = (aiWeekArray, targetUiWeekArray) => {
         if (!Array.isArray(aiWeekArray)) return;
         
         aiWeekArray.forEach(row => {
-          // Find the matching Date object in our UI's current week view
           const targetDayDate = targetUiWeekArray.find(d => 
             d.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase() === row.day?.toLowerCase()
           );
@@ -210,20 +238,19 @@ const MenuView = ({ triggerToast }) => {
           if (targetDayDate) {
             const dateStr = formatDate(targetDayDate);
             
-            // Safely merge the new AI text with whatever might already be in that cell
-            if (row.breakfast) {
+            if (row.breakfast !== undefined) {
               mergedDraft[`${dateStr}_breakfast`] = { 
                 ...mergedDraft[`${dateStr}_breakfast`], 
                 menu_items: row.breakfast 
               };
             }
-            if (row.lunch) {
+            if (row.lunch !== undefined) {
               mergedDraft[`${dateStr}_lunch`] = { 
                 ...mergedDraft[`${dateStr}_lunch`], 
                 menu_items: row.lunch 
               };
             }
-            if (row.dinner) {
+            if (row.dinner !== undefined) {
               mergedDraft[`${dateStr}_dinner`] = { 
                 ...mergedDraft[`${dateStr}_dinner`], 
                 menu_items: row.dinner 
@@ -233,45 +260,33 @@ const MenuView = ({ triggerToast }) => {
         });
       };
 
-      // Apply Week 1 data to the first 7 days
-      if (parsedData.week1) {
-        applyWeek(parsedData.week1, week1);
-      }
-      
-      // Apply Week 2 data to the next 7 days
-      if (parsedData.week2) {
-        applyWeek(parsedData.week2, week2);
-      }
+      if (parsedData.week1) applyWeek(parsedData.week1, week1);
+      if (parsedData.week2) applyWeek(parsedData.week2, week2);
 
-      // Return the fully merged object to React state
       return mergedDraft;
     });
     
-    // Automatically open the edit view so the admin can review the changes
     setIsEditing(true); 
   };
 
-  // NEW: Sends the file to the background context
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
     if (!file) return;
     
-    // Pass the triggerToast to the context so it can talk to the user from the background
     startParsing(file, triggerToast);
-    
     if (fileInputRef.current) fileInputRef.current.value = ''; 
   };
 
   const handleCancel = () => {
     setDraftData(menuData);
-    setIsEditing(false); // Wipes local storage via useEffect
+    setIsEditing(false); 
   };
 
   const navigateWeeks = (weeks) => {
     if (isEditing) {
       const confirmLeave = window.confirm("You have unsaved changes. Discard them?");
       if (!confirmLeave) return;
-      setIsEditing(false); // Clean up memory if they force leave
+      setIsEditing(false); 
     }
     setCurrentMonday(addDays(currentMonday, weeks * 7));
   };
@@ -286,7 +301,7 @@ const MenuView = ({ triggerToast }) => {
           <thead>
             <tr>
               <th style={{ width: '120px' }}>Date</th>
-              {MEALS.map(meal => <th key={meal}>{meal}</th>)}
+              {MEALS.map(meal => <th key={meal} style={{ textTransform: 'capitalize' }}>{meal}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -381,6 +396,10 @@ const MenuView = ({ triggerToast }) => {
             <>
               <button className="btn-ghost" onClick={handleCopyPrevious} disabled={isSaving || isLoading}>
                 <Copy size={16} /> Copy Previous 14 Days
+              </button>
+
+              <button className="btn-ghost" onClick={handleClearMenu} disabled={isSaving || isLoading}>
+                <Trash2 size={16} /> Clear Menu
               </button>
               
               <button className="btn-ghost" onClick={handleCancel} disabled={isSaving}>

@@ -22,6 +22,8 @@ const LogWasteView = ({ profile }) => {
     plate_waste: "",
   });
 
+  const MAX_WASTE_ALLOWED = 1000;
+
   const showToast = (message, type = 'success') => {
     setToast({ show: true, message, type });
     setTimeout(() => setToast({ show: false, message: '', type: '' }), 4000);
@@ -142,7 +144,7 @@ const LogWasteView = ({ profile }) => {
             <div className="waste-box green-tint">
               <h4>Uncooked (Kg)</h4>
               <input
-                type="number" min="0" step="0.01"
+                type="number" min="0" step="0.01" max={MAX_WASTE_ALLOWED}
                 placeholder="-"
                 onFocus={(e) => e.target.placeholder = ""}
                 onBlur={(e) => e.target.placeholder = "-"}
@@ -158,7 +160,7 @@ const LogWasteView = ({ profile }) => {
             <div className="waste-box orange-tint">
               <h4>Cooked (Kg)</h4>
               <input
-                type="number" min="0" step="0.01"
+                type="number" min="0" step="0.01" max={MAX_WASTE_ALLOWED}
                 placeholder="-"
                 onFocus={(e) => e.target.placeholder = ""}
                 onBlur={(e) => e.target.placeholder = "-"}
@@ -174,7 +176,7 @@ const LogWasteView = ({ profile }) => {
             <div className="waste-box red-tint">
               <h4>Plate Waste (Kg)</h4>
               <input
-                type="number" min="0" step="0.01"
+                type="number" min="0" step="0.01" max={MAX_WASTE_ALLOWED}
                 placeholder="-"
                 onFocus={(e) => e.target.placeholder = ""}
                 onBlur={(e) => e.target.placeholder = "-"}

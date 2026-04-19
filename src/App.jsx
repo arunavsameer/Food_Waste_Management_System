@@ -31,15 +31,14 @@ const AuthListener = () => {
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
         if (!session) return;
 
-        // 2. THE FIX: Only route them if they are on the login or register page!
-        // If they are already in the admin/caterer/student dashboard, do nothing.
+        // 2. Only route them if they are on the login or register page!
         const currentPath = window.location.pathname;
         if (currentPath !== '/' && currentPath !== '/register') {
           return; 
         }
 
         try {
-          const userEmail = session.user.email;
+          const userEmail = session.user.email.toLowerCase(); // Force lowercase for safety
           const userId = session.user.id;
           const googleName = session.user.user_metadata?.full_name || '';
 
@@ -50,8 +49,23 @@ const AuthListener = () => {
             .eq('id', userId)
             .maybeSingle();
 
+          // We must check if they exist in BOTH profiles AND their role table to prevent partial creations
+          let isFullyRegistered = false;
           if (profile) {
-            // Route them to their dashboard
+            if (profile.role === 'student') {
+               const { data: studentRecord } = await supabase.from('students').select('id').eq('id', userId).maybeSingle();
+               if (studentRecord) isFullyRegistered = true;
+            } else if (profile.role === 'caterer') {
+               const { data: catRecord } = await supabase.from('caterers').select('caterer_id').eq('caterer_id', userId).maybeSingle();
+               if (catRecord) isFullyRegistered = true;
+            } else if (profile.role === 'admin') {
+               const { data: adminRecord } = await supabase.from('admins').select('admin_id').eq('admin_id', userId).maybeSingle();
+               if (adminRecord) isFullyRegistered = true;
+            }
+          }
+
+          if (isFullyRegistered) {
+            // They are completely set up, route them safely.
             if (profile.role === 'admin') navigate('/admin');
             else if (profile.role === 'caterer') navigate('/caterer', { state: { messName: profile.mess_name } });
             else navigate('/student');
@@ -62,7 +76,7 @@ const AuthListener = () => {
           const { data: preReg } = await supabase
             .from('pre_registrations')
             .select('*')
-            .eq('email', userEmail)
+            .ilike('email', userEmail) // Use ilike for case-insensitive matching
             .maybeSingle();
 
           if (!preReg) {
@@ -73,29 +87,36 @@ const AuthListener = () => {
           }
 
           // User is Pre-Registered! Finalize their account setup.
-          await supabase.from('profiles').upsert([
+          const { error: profileErr } = await supabase.from('profiles').upsert([
             { id: userId, email: userEmail, role: preReg.role, mess_name: preReg.role === 'admin' ? null : preReg.mess_name }
           ]);
+          if (profileErr) throw new Error("Profile creation failed: " + profileErr.message);
 
           if (preReg.role === 'student') {
             const rollNo = userEmail.split('@')[0].toUpperCase();
             const finalName = googleName || rollNo; 
 
-            await supabase.from('students').upsert([
+            const { error: studentErr } = await supabase.from('students').upsert([
               { id: userId, roll_no: rollNo, name: finalName, hostel: preReg.hostel, food_type: preReg.food_type, caterer_id: preReg.caterer_id }
             ]);
+            if (studentErr) throw new Error("Student creation failed: " + studentErr.message);
+            
           } else if (preReg.role === 'caterer') {
-            await supabase.from('caterers').upsert([
+            const { error: catErr } = await supabase.from('caterers').upsert([
               { caterer_id: userId, name: preReg.mess_name, manager_name: preReg.manager_name, phone_no: preReg.phone_no }
             ]);
+            if (catErr) throw new Error("Caterer creation failed: " + catErr.message);
+            
           } else if (preReg.role === 'admin') {
-            await supabase.from('admins').upsert([
+            const { error: adminErr } = await supabase.from('admins').upsert([
               { admin_id: userId, name: preReg.admin_name || googleName, phone_no: preReg.phone_no }
             ]);
+            if (adminErr) throw new Error("Admin creation failed: " + adminErr.message);
           }
 
           // Cleanup: Remove them from the waiting room
-          await supabase.from('pre_registrations').delete().eq('email', userEmail);
+          const { error: delErr } = await supabase.from('pre_registrations').delete().ilike('email', userEmail);
+          if (delErr) throw new Error("Failed to clear pre-registration: " + delErr.message);
 
           // Navigate to correct dashboard
           if (preReg.role === 'admin') navigate('/admin');
@@ -104,7 +125,9 @@ const AuthListener = () => {
 
         } catch (error) {
           console.error("Account finalize error:", error);
-          alert("An error occurred while setting up your account.");
+          alert(`Account setup failed: ${error.message}. Please contact support.`);
+          // Sign them out if it fails so they don't get stuck in a broken state
+          await supabase.auth.signOut();
         }
       }
     });

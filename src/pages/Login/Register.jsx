@@ -71,6 +71,29 @@ const Register = () => {
     try {
       const catererId = await runPreValidation();
 
+      // Pre-register user to enable JWT role assignment via trigger
+      // Check if already exists first to avoid duplicate key error
+      const { data: existingReg } = await supabase
+        .from('pre_registrations')
+        .select('email')
+        .eq('email', formData.email)
+        .maybeSingle();
+
+      if (!existingReg) {
+        const { error: preRegError } = await supabase.from('pre_registrations').insert([{
+          email: formData.email,
+          role: formData.role,
+          mess_name: formData.role === 'admin' ? null : formData.mess_name,
+          hostel: formData.role === 'student' ? formData.hostel : null,
+          food_type: formData.role === 'student' ? formData.food_type : null,
+          manager_name: formData.role === 'caterer' ? formData.manager_name : null,
+          phone_no: formData.role === 'caterer' ? formData.phone_no : null,
+          admin_name: formData.role === 'admin' ? formData.admin_name : null,
+          caterer_id: formData.role === 'student' ? catererId : null,
+        }]);
+        if (preRegError) throw preRegError;
+      }
+
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -80,10 +103,6 @@ const Register = () => {
 
       if (authData.user) {
         const userId = authData.user.id;
-        const { error: profileError } = await supabase.from('profiles').insert([
-          { id: userId, role: formData.role, mess_name: formData.role === 'admin' ? null : formData.mess_name, email: formData.email }
-        ]);
-        if (profileError) throw profileError;
 
         if (formData.role === 'student') {
           await supabase.from('students').insert([{ id: userId, roll_no: formData.roll_no, name: formData.name, hostel: formData.hostel, food_type: formData.food_type, caterer_id: catererId }]);
@@ -111,6 +130,29 @@ const Register = () => {
       }
 
       const catererId = await runPreValidation();
+
+      // Pre-register user to enable JWT role assignment via trigger
+      // Check if already exists first to avoid duplicate key error
+      const { data: existingReg } = await supabase
+        .from('pre_registrations')
+        .select('email')
+        .eq('email', formData.email)
+        .maybeSingle();
+
+      if (!existingReg) {
+        const { error: preRegError } = await supabase.from('pre_registrations').insert([{
+          email: formData.email,
+          role: formData.role,
+          mess_name: formData.role === 'admin' ? null : formData.mess_name,
+          hostel: formData.role === 'student' ? formData.hostel : null,
+          food_type: formData.role === 'student' ? formData.food_type : null,
+          manager_name: formData.role === 'caterer' ? formData.manager_name : null,
+          phone_no: formData.role === 'caterer' ? formData.phone_no : null,
+          admin_name: formData.role === 'admin' ? formData.admin_name : null,
+          caterer_id: formData.role === 'student' ? catererId : null,
+        }]);
+        if (preRegError) throw preRegError;
+      }
 
       localStorage.setItem('debug_registration_data', JSON.stringify({
         ...formData,
@@ -176,10 +218,46 @@ const Register = () => {
           {formData.role === 'student' && (
             <>
               <div className="input-group">
+                <label>Name</label>
+                <div className="input-wrapper">
+                  <UserCircle size={17} className="input-icon" />
+                  <input type="text" name="name" placeholder="Full Name" value={formData.name} onChange={handleChange} required />
+                </div>
+              </div>
+
+              <div className="input-group">
                 <label>Roll Number</label>
                 <div className="input-wrapper">
                   <Hash size={17} className="input-icon" />
                   <input type="text" name="roll_no" placeholder="e.g., 2023CSB1001" value={formData.roll_no} onChange={handleChange} required />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label>Hostel</label>
+                <div className="input-wrapper">
+                  <Building size={17} className="input-icon" />
+                  <select name="hostel" value={formData.hostel} onChange={handleChange} className="styled-select">
+                    <option value="APJ">APJ</option>
+                    <option value="CVR">CVR</option>
+                    <option value="DA">DA</option>
+                    <option value="VSB">VSB</option>
+                    <option value="HJB">HJB</option>
+                    <option value="JCB">JCB</option>
+                    <option value="PM Ajay">PM Ajay</option>
+                    <option value="Others">Others</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label>Food Type</label>
+                <div className="input-wrapper">
+                  <Utensils size={17} className="input-icon" />
+                  <select name="food_type" value={formData.food_type} onChange={handleChange} className="styled-select">
+                    <option value="regular">Regular</option>
+                    <option value="jain">Jain</option>
+                  </select>
                 </div>
               </div>
             </>
@@ -193,6 +271,46 @@ const Register = () => {
                 <input type="text" name="mess_name" placeholder="Enter Mess Name" value={formData.mess_name} onChange={handleChange} required />
               </div>
             </div>
+          )}
+
+          {formData.role === 'caterer' && (
+            <>
+              <div className="input-group">
+                <label>Manager Name</label>
+                <div className="input-wrapper">
+                  <UserCircle size={17} className="input-icon" />
+                  <input type="text" name="manager_name" placeholder="Manager Full Name" value={formData.manager_name} onChange={handleChange} required />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label>Phone Number</label>
+                <div className="input-wrapper">
+                  <Phone size={17} className="input-icon" />
+                  <input type="tel" name="phone_no" placeholder="e.g., 9876543210" value={formData.phone_no} onChange={handleChange} required />
+                </div>
+              </div>
+            </>
+          )}
+
+          {formData.role === 'admin' && (
+            <>
+              <div className="input-group">
+                <label>Admin Name</label>
+                <div className="input-wrapper">
+                  <UserCircle size={17} className="input-icon" />
+                  <input type="text" name="admin_name" placeholder="Admin Full Name" value={formData.admin_name} onChange={handleChange} required />
+                </div>
+              </div>
+
+              <div className="input-group">
+                <label>Phone Number</label>
+                <div className="input-wrapper">
+                  <Phone size={17} className="input-icon" />
+                  <input type="tel" name="admin_phone_no" placeholder="e.g., 9876543210" value={formData.admin_phone_no} onChange={handleChange} required />
+                </div>
+              </div>
+            </>
           )}
 
           {error && <div className="error-message">{error}</div>}

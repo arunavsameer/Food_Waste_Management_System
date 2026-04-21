@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import * as XLSX from 'xlsx';
 import {
-  Loader2, Users, Plus, Pencil, RefreshCw, X, Check, Upload, AlertCircle, Trash2, AlertTriangle
+  Loader2, Users, Plus, Pencil, RefreshCw, X, Check, Upload, AlertCircle, Trash2, AlertTriangle, Lock
 } from 'lucide-react';
 
 const ROLES = ['student', 'caterer', 'admin'];
@@ -12,6 +12,13 @@ const FOOD_TYPES = ['regular', 'jain'];
 const emptyForm = {
   email: '', role: 'student', mess_name: '',
   hostel: 'APJ', food_type: 'regular',
+  manager_name: '', phone_no: '',
+  admin_name: '', admin_phone_no: '',
+};
+
+const emptyAddUserForm = {
+  email: '', password: '', role: 'student', mess_name: '',
+  hostel: 'APJ', food_type: 'regular', name: '',
   manager_name: '', phone_no: '',
   admin_name: '', admin_phone_no: '',
 };
@@ -29,6 +36,12 @@ const UsersView = ({ triggerToast }) => {
   const [isPendingEdit, setIsPendingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [modalError, setModalError] = useState('');
+  
+  // Add User Modal State
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [addUserForm, setAddUserForm] = useState(emptyAddUserForm);
+  const [addUserError, setAddUserError] = useState('');
+  const [addUserSaving, setAddUserSaving] = useState(false);
   
   // Delete Modal State
   const [userToDelete, setUserToDelete] = useState(null);
@@ -109,6 +122,151 @@ const UsersView = ({ triggerToast }) => {
 
   const closeModal = () => { setModal(null); setModalError(''); };
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  // ── ADD USER (Full Registration) HANDLERS ──
+  const openAddUser = () => {
+    setAddUserForm(emptyAddUserForm);
+    setAddUserError('');
+    setShowAddUserModal(true);
+  };
+
+  const closeAddUserModal = () => {
+    setShowAddUserModal(false);
+    setAddUserError('');
+  };
+
+  const handleAddUserChange = (e) => setAddUserForm(f => ({ ...f, [e.target.name]: e.target.value }));
+
+  const fetchCatererId = async (messName) => {
+    try {
+      const { data, error } = await supabase
+        .from('caterers')
+        .select('caterer_id')
+        .eq('name', messName)
+        .single();
+      if (error) throw error;
+      return data?.caterer_id || null;
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const handleAddUserSubmit = async () => {
+    setAddUserSaving(true);
+    setAddUserError('');
+
+    try {
+      if (!addUserForm.email) throw new Error("Email address is required.");
+      if (!addUserForm.password) throw new Error("Password is required.");
+      if (addUserForm.password.length < 6) throw new Error("Password must be at least 6 characters.");
+
+      const cleanEmail = addUserForm.email.trim().toLowerCase();
+      const cleanMessName = addUserForm.mess_name?.trim() || '';
+
+      // Validate student email format
+      if (addUserForm.role === 'student' && !cleanEmail.endsWith('@iiti.ac.in')) {
+        throw new Error('Students must use an @iiti.ac.in email address.');
+      }
+
+      // Check if email already exists
+      const { data: exist1 } = await supabase.from('profiles').select('email').eq('email', cleanEmail).limit(1);
+      if (exist1?.length > 0) throw new Error("This email is already registered as an active user.");
+      const { data: exist2 } = await supabase.from('pre_registrations').select('email').eq('email', cleanEmail).limit(1);
+      if (exist2?.length > 0) throw new Error("This email is already pending.");
+
+      let catererId = null;
+
+      // Validate student fields
+      if (addUserForm.role === 'student') {
+        if (!cleanMessName) throw new Error("Student requires a mess name to subscribe to.");
+        if (!addUserForm.name) throw new Error("Student name is required.");
+        catererId = await fetchCatererId(cleanMessName);
+        if (!catererId) throw new Error(`Caterer/Mess "${cleanMessName}" not found.`);
+      }
+
+      // Validate caterer fields
+      if (addUserForm.role === 'caterer') {
+        if (!cleanMessName) throw new Error("Please enter a Mess Name for this caterer.");
+        if (!addUserForm.manager_name) throw new Error("Manager name is required for caterer.");
+        if (!addUserForm.phone_no) throw new Error("Phone number is required for caterer.");
+        const { data: activeCats } = await supabase.from('caterers').select('caterer_id').ilike('name', cleanMessName).limit(1);
+        if (activeCats?.length > 0) throw new Error(`An active caterer named "${cleanMessName}" already exists.`);
+        const { data: pendingCats } = await supabase.from('pre_registrations').select('email').eq('role', 'caterer').ilike('mess_name', cleanMessName).limit(1);
+        if (pendingCats?.length > 0) throw new Error(`A pending caterer named "${cleanMessName}" is already registered.`);
+      }
+
+      // Validate admin fields
+      if (addUserForm.role === 'admin') {
+        if (!addUserForm.admin_name) throw new Error("Admin name is required.");
+      }
+
+      // Pre-register user to enable JWT role assignment via trigger
+      const { data: existingReg } = await supabase
+        .from('pre_registrations')
+        .select('email')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      if (!existingReg) {
+        const { error: preRegError } = await supabase.from('pre_registrations').insert([{
+          email: cleanEmail,
+          role: addUserForm.role,
+          mess_name: addUserForm.role === 'admin' ? null : cleanMessName,
+          hostel: addUserForm.role === 'student' ? addUserForm.hostel : null,
+          food_type: addUserForm.role === 'student' ? addUserForm.food_type : null,
+          manager_name: addUserForm.role === 'caterer' ? addUserForm.manager_name : null,
+          phone_no: addUserForm.role === 'caterer' ? addUserForm.phone_no : (addUserForm.role === 'admin' ? addUserForm.phone_no : null),
+          admin_name: addUserForm.role === 'admin' ? addUserForm.admin_name : null,
+          caterer_id: addUserForm.role === 'student' ? catererId : null,
+        }]);
+        if (preRegError) throw preRegError;
+      }
+
+      // Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: addUserForm.password,
+      });
+
+      if (authError) throw authError;
+
+      if (authData.user) {
+        const userId = authData.user.id;
+
+        // Create role-specific records
+        if (addUserForm.role === 'student') {
+          await supabase.from('students').insert([{
+            id: userId,
+            name: addUserForm.name,
+            hostel: addUserForm.hostel,
+            food_type: addUserForm.food_type,
+            caterer_id: catererId
+          }]);
+        } else if (addUserForm.role === 'caterer') {
+          await supabase.from('caterers').insert([{
+            caterer_id: userId,
+            name: cleanMessName,
+            manager_name: addUserForm.manager_name,
+            phone_no: addUserForm.phone_no
+          }]);
+        } else if (addUserForm.role === 'admin') {
+          await supabase.from('admins').insert([{
+            admin_id: userId,
+            name: addUserForm.admin_name,
+            phone_no: addUserForm.phone_no || null
+          }]);
+        }
+
+        if (typeof triggerToast === 'function') triggerToast('success', 'User created successfully!');
+        closeAddUserModal();
+        fetchProfiles();
+      }
+    } catch (err) {
+      setAddUserError(err.message || 'Failed to create user.');
+    } finally {
+      setAddUserSaving(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!userToDelete) return;
@@ -447,6 +605,10 @@ const UsersView = ({ triggerToast }) => {
             <button className="btn-primary" onClick={openAdd}>
               <Plus size={16} /> Pre-Register
             </button>
+
+            <button className="btn-primary" onClick={openAddUser} style={{ backgroundColor: 'var(--success-green, #22c55e)' }}>
+              <Plus size={16} /> Add User
+            </button>
           </div>
         </div>
 
@@ -713,6 +875,97 @@ const UsersView = ({ triggerToast }) => {
                   {saving ? <Loader2 size={15} className="spin" /> : <Upload size={15} />} Submit Data
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAddUserModal && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && closeAddUserModal()}>
+          <div className="modal-box" style={{ maxWidth: '550px' }}>
+            <div className="modal-title">Add User</div>
+            <div className="modal-grid">
+              <div className="form-group full">
+                <label className="form-label">Role</label>
+                <select className="form-select" name="role" value={addUserForm.role} onChange={handleAddUserChange}>
+                  {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
+                </select>
+              </div>
+
+              <div className="form-group full">
+                <label className="form-label">Email Address {addUserForm.role === 'student' && '(Must be @iiti.ac.in)'}</label>
+                <input className="form-input" type="email" name="email" placeholder="user@iiti.ac.in" value={addUserForm.email} onChange={handleAddUserChange} />
+              </div>
+
+              <div className="form-group full">
+                <label className="form-label">Password</label>
+                <div className="input-wrapper" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Lock size={17} style={{ position: 'absolute', left: '10px', color: 'var(--text-muted)' }} />
+                  <input className="form-input" type="password" name="password" placeholder="Min 6 characters" value={addUserForm.password} onChange={handleAddUserChange} style={{ paddingLeft: '35px' }} />
+                </div>
+              </div>
+
+              {addUserForm.role === 'student' && (
+                <>
+                  <div className="form-group full">
+                    <label className="form-label">Name</label>
+                    <input className="form-input" type="text" name="name" placeholder="Full Name" value={addUserForm.name} onChange={handleAddUserChange} />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Hostel</label>
+                    <select className="form-select" name="hostel" value={addUserForm.hostel} onChange={handleAddUserChange}>
+                      {HOSTELS.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Food Type</label>
+                    <select className="form-select" name="food_type" value={addUserForm.food_type} onChange={handleAddUserChange}>
+                      {FOOD_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group full">
+                    <label className="form-label">Mess Name to Subscribe</label>
+                    <input className="form-input" type="text" name="mess_name" placeholder="Enter Mess Name" value={addUserForm.mess_name} onChange={handleAddUserChange} />
+                  </div>
+                </>
+              )}
+
+              {addUserForm.role === 'caterer' && (
+                <>
+                  <div className="form-group full">
+                    <label className="form-label">Mess Name</label>
+                    <input className="form-input" type="text" name="mess_name" placeholder="Enter Mess Name" value={addUserForm.mess_name} onChange={handleAddUserChange} />
+                  </div>
+                  <div className="form-group full">
+                    <label className="form-label">Manager Name</label>
+                    <input className="form-input" type="text" name="manager_name" placeholder="Manager Full Name" value={addUserForm.manager_name} onChange={handleAddUserChange} />
+                  </div>
+                  <div className="form-group full">
+                    <label className="form-label">Phone Number</label>
+                    <input className="form-input" type="tel" name="phone_no" placeholder="+91 00000 00000" value={addUserForm.phone_no} onChange={handleAddUserChange} />
+                  </div>
+                </>
+              )}
+
+              {addUserForm.role === 'admin' && (
+                <>
+                  <div className="form-group full">
+                    <label className="form-label">Admin Name</label>
+                    <input className="form-input" type="text" name="admin_name" placeholder="Admin Full Name" value={addUserForm.admin_name} onChange={handleAddUserChange} />
+                  </div>
+                  <div className="form-group full">
+                    <label className="form-label">Phone Number</label>
+                    <input className="form-input" type="tel" name="phone_no" placeholder="+91 00000 00000" value={addUserForm.phone_no} onChange={handleAddUserChange} />
+                  </div>
+                </>
+              )}
+            </div>
+            {addUserError && <div className="modal-error"><strong>Error: </strong>{addUserError}</div>}
+            <div className="modal-actions">
+              <button className="btn-ghost" onClick={closeAddUserModal} disabled={addUserSaving}><X size={15} /> Cancel</button>
+              <button className="btn-primary" onClick={handleAddUserSubmit} disabled={addUserSaving} style={{ backgroundColor: 'var(--success-green, #22c55e)' }}>
+                {addUserSaving ? <Loader2 size={15} className="spin" /> : <Check size={15} />} Create User
+              </button>
             </div>
           </div>
         </div>

@@ -703,7 +703,7 @@ const WasteReportsView = () => {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
 
         {/* Mess Comparison — avg/report bars */}
-        <div className="chart-card">
+        <div className="chart-card admin-hover-lift">
           <h3 style={{ margin:'0 0 2px', fontSize:'1rem', fontWeight:800 }}>Mess Comparison</h3>
           <p style={{ margin:'0 0 16px', fontSize:'0.74rem', color:'var(--text-muted)' }}>
             Avg waste per report · {dateRange.label} · global avg {totals.avgPerReport.toFixed(1)} kg
@@ -752,7 +752,7 @@ const WasteReportsView = () => {
         </div>
 
         {/* Waste by Meal Type */}
-        <div className="chart-card">
+        <div className="chart-card admin-hover-lift">
           <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:800 }}>Waste by Meal Type</h3>
           <p style={{ margin:'0 0 16px', fontSize:'0.74rem', color:'var(--text-muted)' }}>
             Breakdown per meal · {dateRange.label}
@@ -788,7 +788,7 @@ const WasteReportsView = () => {
 
       {/* ══ COMPARISON CARDS: compact + optional ══ */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:'20px' }}>
-        <div className="chart-card">
+        <div className="chart-card admin-hover-lift">
           <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:800 }}>Current vs Previous Window</h3>
           <p style={{ margin:'0 0 16px', fontSize:'0.74rem', color:'var(--text-muted)' }}>
             Same active filters, compared against the previous matching time window
@@ -839,7 +839,7 @@ const WasteReportsView = () => {
           )}
         </div>
 
-        <div className="chart-card">
+        <div className="chart-card admin-hover-lift">
           <h3 style={{ margin:'0 0 4px', fontSize:'1rem', fontWeight:800 }}>Meal Efficiency by Mess</h3>
           <p style={{ margin:'0 0 16px', fontSize:'0.74rem', color:'var(--text-muted)' }}>
             Best and worst meal per mess, ranked by improvement opportunity

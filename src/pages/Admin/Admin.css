@@ -488,11 +488,190 @@ table.admin-table {
   box-shadow: var(--shadow);
 }
 
+.admin-hover-lift {
+  transition: transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease;
+  will-change: transform;
+}
+
+.admin-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.12);
+}
+
 .chart-card h3 {
   margin: 0 0 16px 0;
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--text-main);
+}
+
+.feedback-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.feedback-hero-card {
+  position: relative;
+  overflow: hidden;
+  min-height: 180px;
+  padding: 22px;
+  border-radius: 20px;
+  color: white;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  box-shadow: var(--shadow);
+}
+
+.feedback-hero-badge-wrap {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 2;
+}
+
+.feedback-trend-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(8px);
+}
+
+.feedback-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: auto -30px -40px auto;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.feedback-hero-card-score {
+  background: linear-gradient(135deg, #154734 0%, #2ecc71 100%);
+}
+
+.feedback-hero-card-responses {
+  background: linear-gradient(135deg, #1d3557 0%, #4ea8de 100%);
+}
+
+.feedback-hero-card-meal {
+  background: linear-gradient(135deg, #5f3b23 0%, #f39c12 100%);
+}
+
+.feedback-hero-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.feedback-hero-label {
+  position: relative;
+  z-index: 1;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.feedback-hero-value {
+  position: relative;
+  z-index: 1;
+  font-size: 2.35rem;
+  font-weight: 900;
+  line-height: 1;
+  color: white;
+}
+
+.feedback-hero-value span {
+  margin-left: 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.feedback-hero-meta {
+  position: relative;
+  z-index: 1;
+  max-width: 30ch;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.86);
+}
+
+.feedback-benchmark-card {
+  overflow: hidden;
+}
+
+.feedback-benchmark-header {
+  align-items: flex-start;
+}
+
+.feedback-benchmark-highlights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  flex: 1;
+}
+
+.feedback-benchmark-chip {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-hover);
+  min-width: 0;
+}
+
+.feedback-benchmark-chip svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.feedback-benchmark-chip div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.feedback-benchmark-chip strong {
+  font-size: 0.88rem;
+  color: var(--text-main);
+}
+
+.feedback-benchmark-chip span {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+.feedback-benchmark-chip-best {
+  background: rgba(46, 204, 113, 0.16);
+  border-color: rgba(46, 204, 113, 0.34);
+  color: var(--primary-green);
+}
+
+.feedback-benchmark-chip-worst {
+  background: rgba(243, 156, 18, 0.16);
+  border-color: rgba(243, 156, 18, 0.34);
+  color: #c97d0a;
 }
 
 /* Simple bar chart */

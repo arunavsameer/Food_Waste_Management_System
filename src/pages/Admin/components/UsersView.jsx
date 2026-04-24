@@ -14,6 +14,7 @@ const emptyForm = {
   hostel: 'APJ', food_type: 'regular',
   manager_name: '', phone_no: '',
   admin_name: '', admin_phone_no: '',
+  serial_no: '',
 };
 
 const emptyAddUserForm = {
@@ -21,6 +22,7 @@ const emptyAddUserForm = {
   hostel: 'APJ', food_type: 'regular', name: '',
   manager_name: '', phone_no: '',
   admin_name: '', admin_phone_no: '',
+  serial_no: '',
 };
 
 const UsersView = ({ triggerToast }) => {
@@ -57,7 +59,7 @@ const UsersView = ({ triggerToast }) => {
     try {
       const { data: activeUsers, error: err1 } = await supabase
         .from('profiles')
-        .select('id, email, role, mess_name, created_at, students(name, roll_no, hostel, food_type), admins(name, phone_no), caterers(manager_name, phone_no)')
+        .select('id, email, role, mess_name, created_at, students(name, roll_no, hostel, food_type, serial_no), admins(name, phone_no), caterers(manager_name, phone_no)')
         .order('created_at', { ascending: false });
       if (err1) throw err1;
 
@@ -115,6 +117,7 @@ const UsersView = ({ triggerToast }) => {
       hostel: p.students?.hostel || 'APJ', food_type: p.students?.food_type || 'regular',
       manager_name: p.caterers?.manager_name || '', phone_no: p.caterers?.phone_no || '',
       admin_name: p.admins?.name || '', admin_phone_no: p.admins?.phone_no || '',
+      serial_no: p.students?.serial_no || '',
     });
     setEditId(p.id); setIsPendingEdit(p.status === 'Pending');
     setModalError(''); setModal('edit');
@@ -214,6 +217,7 @@ const UsersView = ({ triggerToast }) => {
           mess_name: addUserForm.role === 'admin' ? null : cleanMessName,
           hostel: addUserForm.role === 'student' ? addUserForm.hostel : null,
           food_type: addUserForm.role === 'student' ? addUserForm.food_type : null,
+          serial_no: addUserForm.role === 'student' ? (addUserForm.serial_no ? parseInt(addUserForm.serial_no) : null) : null,
           manager_name: addUserForm.role === 'caterer' ? addUserForm.manager_name : null,
           phone_no: addUserForm.role === 'caterer' ? addUserForm.phone_no : (addUserForm.role === 'admin' ? addUserForm.phone_no : null),
           admin_name: addUserForm.role === 'admin' ? addUserForm.admin_name : null,
@@ -240,7 +244,8 @@ const UsersView = ({ triggerToast }) => {
             name: addUserForm.name,
             hostel: addUserForm.hostel,
             food_type: addUserForm.food_type,
-            caterer_id: catererId
+            caterer_id: catererId,
+            serial_no: addUserForm.serial_no ? parseInt(addUserForm.serial_no) : null,
           }]);
         } else if (addUserForm.role === 'caterer') {
           await supabase.from('caterers').insert([{
@@ -325,6 +330,7 @@ const UsersView = ({ triggerToast }) => {
         email: cleanEmail, role: form.role,
         mess_name: form.role === 'admin' ? null : cleanMessName, caterer_id: catererId,
         hostel: form.role === 'student' ? form.hostel : null, food_type: form.role === 'student' ? form.food_type : null,
+        serial_no: form.role === 'student' ? (form.serial_no ? parseInt(form.serial_no) : null) : null,
         manager_name: form.role === 'caterer' ? form.manager_name?.trim() || null : null,
         phone_no: form.role === 'caterer' ? form.phone_no?.trim() || null : (form.role === 'admin' ? form.admin_phone_no?.trim() || null : null),
         admin_name: form.role === 'admin' ? form.admin_name?.trim() || null : null
@@ -359,6 +365,7 @@ const UsersView = ({ triggerToast }) => {
         const { error } = await supabase.from('pre_registrations').update({
           mess_name: form.role === 'admin' ? null : cleanMessName,
           hostel: form.role === 'student' ? form.hostel : null, food_type: form.role === 'student' ? form.food_type : null,
+          serial_no: form.role === 'student' ? (form.serial_no ? parseInt(form.serial_no) : null) : null,
           manager_name: form.role === 'caterer' ? form.manager_name?.trim() || null : null,
           phone_no: form.role === 'caterer' ? form.phone_no?.trim() || null : (form.role === 'admin' ? form.admin_phone_no?.trim() || null : null),
           admin_name: form.role === 'admin' ? form.admin_name?.trim() || null : null
@@ -375,7 +382,7 @@ const UsersView = ({ triggerToast }) => {
             if (!cats || cats.length === 0) throw new Error(`Caterer "${cleanMessName}" not found.`);
             newCatererId = cats[0].caterer_id;
           }
-          await supabase.from('students').update({ hostel: form.hostel, food_type: form.food_type, caterer_id: newCatererId }).eq('id', editId);
+          await supabase.from('students').update({ hostel: form.hostel, food_type: form.food_type, caterer_id: newCatererId, serial_no: form.serial_no ? parseInt(form.serial_no) : null }).eq('id', editId);
         } else if (form.role === 'caterer') {
           await supabase.from('caterers').update({ name: cleanMessName, manager_name: form.manager_name?.trim() || null, phone_no: form.phone_no?.trim() || null }).eq('caterer_id', editId);
         } else if (form.role === 'admin') {
@@ -444,6 +451,7 @@ const UsersView = ({ triggerToast }) => {
           mess_name: row.mess_name || row['Mess Name'] || row.mess || '',
           hostel: row.hostel || row.Hostel || row.HOSTEL || 'APJ',
           food_type: row.food_type || row['Food Type'] || row.Food_Type || 'regular',
+          serial_no: row.serial_no || row['Serial No'] || row['Serial Number'] || '',
           manager_name: row.manager_name || row['Manager Name'] || '',
           phone_no: row.phone_no || row['Phone No'] || row.phone || row.Phone || '',
           admin_name: row.admin_name || row['Admin Name'] || '',
@@ -519,6 +527,7 @@ const UsersView = ({ triggerToast }) => {
             email: row.email, role: row.role,
             mess_name: row.role === 'admin' ? null : row.mess_name, caterer_id: catererId,
             hostel: row.role === 'student' ? row.hostel : null, food_type: row.role === 'student' ? row.food_type : null,
+            serial_no: row.role === 'student' ? (row.serial_no ? parseInt(row.serial_no) : null) : null,
             manager_name: row.role === 'caterer' ? row.manager_name || null : null,
             phone_no: row.role === 'caterer' ? row.phone_no || null : (row.role === 'admin' ? row.phone_no || null : null),
             admin_name: row.role === 'admin' ? row.admin_name || null : null
@@ -529,6 +538,7 @@ const UsersView = ({ triggerToast }) => {
              const { error } = await supabase.from('pre_registrations').update({
                 role: row.role, mess_name: row.role === 'admin' ? null : row.mess_name, caterer_id: catererId,
                 hostel: row.role === 'student' ? row.hostel : null, food_type: row.role === 'student' ? row.food_type : null,
+                serial_no: row.role === 'student' ? (row.serial_no ? parseInt(row.serial_no) : null) : null,
                 manager_name: row.role === 'caterer' ? row.manager_name || null : null,
                 phone_no: row.role === 'caterer' ? row.phone_no || null : (row.role === 'admin' ? row.phone_no || null : null),
                 admin_name: row.role === 'admin' ? row.admin_name || null : null
@@ -537,7 +547,7 @@ const UsersView = ({ triggerToast }) => {
           } else {
              await supabase.from('profiles').update({ mess_name: row.role === 'admin' ? null : row.mess_name }).eq('id', row.dbId);
              if (row.role === 'student') {
-               await supabase.from('students').update({ hostel: row.hostel, food_type: row.food_type, caterer_id: catererId }).eq('id', row.dbId);
+               await supabase.from('students').update({ hostel: row.hostel, food_type: row.food_type, caterer_id: catererId, serial_no: row.serial_no ? parseInt(row.serial_no) : null }).eq('id', row.dbId);
              } else if (row.role === 'caterer') {
                await supabase.from('caterers').update({ name: row.mess_name, manager_name: row.manager_name || null, phone_no: row.phone_no || null }).eq('caterer_id', row.dbId);
              } else if (row.role === 'admin') {
@@ -606,7 +616,7 @@ const UsersView = ({ triggerToast }) => {
               <Plus size={16} /> Pre-Register
             </button>
 
-            <button className="btn-primary" onClick={openAddUser} style={{ backgroundColor: 'var(--success-green, #22c55e)' }}>
+            <button className="btn-primary" onClick={openAddUser}>
               <Plus size={16} /> Add User
             </button>
           </div>
@@ -710,6 +720,7 @@ const UsersView = ({ triggerToast }) => {
                 <>
                   <div className="form-group"><label className="form-label">Hostel</label><select className="form-select" name="hostel" value={form.hostel} onChange={handleChange}>{HOSTELS.map(h => <option key={h} value={h}>{h}</option>)}</select></div>
                   <div className="form-group"><label className="form-label">Food Type</label><select className="form-select" name="food_type" value={form.food_type} onChange={handleChange}>{FOOD_TYPES.map(f => <option key={f} value={f}>{f}</option>)}</select></div>
+                  <div className="form-group"><label className="form-label">Serial No (Optional)</label><input className="form-input" type="number" name="serial_no" value={form.serial_no || ''} onChange={handleChange} placeholder="e.g. 101" /></div>
                   <div className="form-group full"><label className="form-label">Mess Name</label><input className="form-input" type="text" name="mess_name" value={form.mess_name} onChange={handleChange} /></div>
                 </>
               )}
@@ -765,6 +776,7 @@ const UsersView = ({ triggerToast }) => {
                     <th style={{ width: '140px' }}>Mess Name</th>
                     <th style={{ width: '90px' }}>Hostel</th>
                     <th style={{ width: '110px' }}>Food Type</th>
+                    <th style={{ width: '80px' }}>Serial No</th>
                     <th style={{ width: '140px' }}>Name (Mgr/Admin)</th>
                     <th style={{ width: '130px' }}>Phone No</th>
                     <th>Status / Errors</th>
@@ -829,6 +841,17 @@ const UsersView = ({ triggerToast }) => {
                               {FOOD_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
                             </select>
                           </div>
+                        </td>
+                        <td>
+                          <input 
+                            className="xls-input" 
+                            type="number"
+                            placeholder={row.role === 'student' ? 'Optional' : 'N/A'} 
+                            value={row.serial_no || ''} 
+                            onChange={(e) => handleXlsChange(index, 'serial_no', e.target.value)} 
+                            disabled={row.role !== 'student'} 
+                            min="0"
+                          />
                         </td>
                         <td>
                           <input 
@@ -922,6 +945,10 @@ const UsersView = ({ triggerToast }) => {
                     <select className="form-select" name="food_type" value={addUserForm.food_type} onChange={handleAddUserChange}>
                       {FOOD_TYPES.map(f => <option key={f} value={f}>{f}</option>)}
                     </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Serial No (Optional)</label>
+                    <input className="form-input" type="number" name="serial_no" placeholder="e.g. 101" value={addUserForm.serial_no || ''} onChange={handleAddUserChange} />
                   </div>
                   <div className="form-group full">
                     <label className="form-label">Mess Name to Subscribe</label>

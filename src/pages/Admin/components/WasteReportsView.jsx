@@ -664,7 +664,7 @@ const WasteReportsView = () => {
         fontSize:'0.82rem',
       }}>
         <span style={{ fontWeight:700, color:'var(--text-main)' }}>
-          📅 {dateRange.label}
+          {dateRange.label}
         </span>
         {filterMess !== 'all' && (
           <span style={{ color:'var(--primary-green)', fontWeight:600 }}>· {filterMess}</span>

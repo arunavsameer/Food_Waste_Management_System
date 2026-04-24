@@ -360,6 +360,41 @@ const StudentDashboard = () => {
         >
           {initials}
         </button>
+
+        {showProfile && (
+          <div className="profile-dropdown">
+            <div className="pd-header">
+              <div className="pd-avatar-large">{initials}</div>
+              <p className="pd-name">{studentName || 'Student'}</p>
+              <p className="pd-sub">{studentProfile?.email || ''}</p>
+            </div>
+
+            <div className="pd-divider" />
+
+            <ul className="pd-menu">
+              <li className="pd-item">
+                <span className="pd-item-icon"><Building2 size={16} /></span>
+                <span className="pd-item-label">Mess</span>
+                <span className="pd-item-value">{messName}</span>
+              </li>
+              <li className="pd-item">
+                <span className="pd-item-icon"><UtensilsCrossed size={16} /></span>
+                <span className="pd-item-label">Food Type</span>
+                <span className="pd-item-value">{studentProfile?.students?.food_type || '—'}</span>
+              </li>
+              <li className="pd-item">
+                <span className="pd-item-icon"><Hash size={16} /></span>
+                <span className="pd-item-label">Roll No</span>
+                <span className="pd-item-value">{studentProfile?.students?.roll_no || '—'}</span>
+              </li>
+              <li className="pd-item">
+                <span className="pd-item-icon"><ListOrdered size={16} /></span>
+                <span className="pd-item-label">Serial No</span>
+                <span className="pd-item-value">{studentProfile?.students?.serial_no || '—'}</span>
+              </li>
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   </header>

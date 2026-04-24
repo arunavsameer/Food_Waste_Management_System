@@ -347,28 +347,31 @@ const MenuView = ({ triggerToast }) => {
     <div className="menu-view">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button className="icon-btn" onClick={() => navigateWeeks(-2)}>
-            <ChevronLeft size={18} />
-          </button>
-          <div style={{ fontWeight: 700, color: 'var(--text-main)', minWidth: '220px', textAlign: 'center' }}>
-            {days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {days[13].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+        {!isEditing && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+            <button className="icon-btn" onClick={() => navigateWeeks(-1)}>
+              <ChevronLeft size={18} />
+            </button>
+            <div style={{ fontWeight: 700, color: 'var(--text-main)', minWidth: '180px', textAlign: 'center' }}>
+              {days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} — {days[13].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+            </div>
+            <button className="icon-btn" onClick={() => navigateWeeks(1)}>
+              <ChevronRight size={18} />
+            </button>
           </div>
-          <button className="icon-btn" onClick={() => navigateWeeks(2)}>
-            <ChevronRight size={18} />
-          </button>
-        </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <select 
-            className="admin-filter-select"
-            value={foodType}
-            onChange={(e) => setFoodType(e.target.value)}
-            disabled={isEditing}
-          >
-            <option value="regular">Regular Menu</option>
-            <option value="jain">Jain Menu</option>
-          </select>
+          {!isEditing && (
+            <select 
+              className="admin-filter-select"
+              value={foodType}
+              onChange={(e) => setFoodType(e.target.value)}
+            >
+              <option value="regular">Regular Menu</option>
+              <option value="jain">Jain Menu</option>
+            </select>
+          )}
 
           {!isEditing ? (
             <>

@@ -2,20 +2,14 @@ import React, { useState } from 'react';
 import { Trash2, Loader2, CheckCircle, AlertCircle, Clock } from 'lucide-react';
 import { supabase } from '../../../lib/supabase'; 
 import SkipCountsCard from './SkipCountsCard';
-
-const getLocalDateString = (date = new Date()) => {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
+import { formatZonedDate, getZonedMinutes } from '../../../lib/timeUtils';
 
 const LogWasteView = ({ profile }) => {
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '', type: '' });
   
   const [formData, setFormData] = useState({
-    report_date: getLocalDateString(),
+    report_date: formatZonedDate(),
     meal_type: 'lunch', 
     kitchen_uncooked: "",
     kitchen_cooked: "",
@@ -34,10 +28,8 @@ const LogWasteView = ({ profile }) => {
     
     const now = new Date();
     const selectedDateStr = formData.report_date;
-    const todayStr = getLocalDateString(now);
-    const currentHour = now.getHours();
-    const currentMinutes = now.getMinutes();
-    const currentTimeInMinutes = currentHour * 60 + currentMinutes;
+    const todayStr = formatZonedDate(now);
+    const currentTimeInMinutes = getZonedMinutes(now);
 
     if (selectedDateStr > todayStr) {
       showToast("Cannot report waste for future dates!", "error");
@@ -115,11 +107,11 @@ const LogWasteView = ({ profile }) => {
 
           <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
             <div style={{ flex: 1 }}>
-              <label>Report Date</label>
-              <input
-                type="date"
-                className="styled-input"
-                max={getLocalDateString()}
+                <label>Report Date</label>
+                <input
+                  type="date"
+                  className="styled-input"
+                max={formatZonedDate()}
                 value={formData.report_date}
                 onChange={(e) => setFormData({ ...formData, report_date: e.target.value })}
                 required

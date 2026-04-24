@@ -1,7 +1,46 @@
 import React, { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { DEFAULT_TIME_ZONE, formatZonedDate, getZonedParts, isBeforeZonedCutoff } from '../../../lib/timeUtils';
 
 const min_bad_fb_len = 30;
+const FEEDBACK_CUTOFFS = {
+  breakfast: { hour: 8, minute: 30, label: '8:30 AM' },
+  lunch: { hour: 13, minute: 0, label: '1:00 PM' },
+  dinner: { hour: 20, minute: 30, label: '8:30 PM' },
+};
+
+const getZonedRecentLabel = (date, timeZone = DEFAULT_TIME_ZONE) => {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+};
+
+const getZonedDateShifted = (daysOffset = 0) => {
+  const { year, month, day } = getZonedParts(new Date());
+  return new Date(Date.UTC(year, month - 1, day + daysOffset, 12, 0, 0));
+};
+
+const getFeedbackWindow = (dateStr, mealType) => {
+  const now = new Date();
+  const todayStr = formatZonedDate(now);
+
+  if (dateStr !== todayStr) {
+    return { allowed: true, label: null };
+  }
+
+  const cutoff = FEEDBACK_CUTOFFS[mealType];
+  if (!cutoff) {
+    return { allowed: true, label: null };
+  }
+
+  return {
+    allowed: !isBeforeZonedCutoff(now, cutoff.hour, cutoff.minute),
+    label: cutoff.label,
+  };
+};
 
 const AUTO_COMMENTS = {
   breakfast: {
@@ -43,19 +82,14 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
   const [isExiting, setIsExiting] = useState(false);
 
   const formatLocalDate = (date) => {
-    const y = date.getFullYear();
-    const m = String(date.getMonth() + 1).padStart(2, '0');
-    const d = String(date.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return formatZonedDate(date);
   };
 
   const getRecentDates = () => {
     const dates = [];
-    const today = new Date();
     for (let i = 0; i < 3; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() - i);
-      let label = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const d = getZonedDateShifted(-i);
+      let label = getZonedRecentLabel(d);
       if (i === 0) label = `Today (${label})`;
       else if (i === 1) label = `Yesterday (${label})`;
       dates.push({ value: formatLocalDate(d), label }); 
@@ -113,12 +147,22 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
 
   const fullComment = buildFullComment(selectedChips, manualComment);
   const charCount = fullComment.length;
+  const submissionWindow = getFeedbackWindow(selectedDate, mealType);
 
   const handleSubmit = async () => {
     if (fullComment.trim().length < min_bad_fb_len && rating < 5) {
       if (onError) onError("Please explain why the food was bad (Min 30 chars).");
       return;
     }
+
+    const submissionWindow = getFeedbackWindow(selectedDate, mealType);
+    if (!submissionWindow.allowed) {
+      if (onError) {
+        onError(`Today's ${mealType} feedback can only be submitted after ${submissionWindow.label} .`);
+      }
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const { data: { session }, error: authError } = await supabase.auth.getSession();
@@ -339,10 +383,18 @@ const FeedbackView = ({ onSuccessfulSubmit, onError }) => {
           )}
         </div>
 
-        <button className="submit-btn-dark" onClick={handleSubmit} disabled={isSubmitting}
+        <button
+          className="submit-btn-dark"
+          onClick={handleSubmit}
+          disabled={isSubmitting || !submissionWindow.allowed}
           style={{ marginTop: '25px', backgroundColor: getRatingColor(rating), color: 'white' }}>
           {isSubmitting ? 'Submitting...' : 'Submit Feedback'}
         </button>
+        {!submissionWindow.allowed && (
+          <div style={{ marginTop: '10px', fontSize: '0.8rem', color: 'var(--warning)', textAlign: 'center' }}>
+            Today's {mealType} feedback opens after {submissionWindow.label} (IST).
+          </div>
+        )}
       </div>
     </div>
   );

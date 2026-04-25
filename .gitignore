@@ -36,5 +36,5 @@ dist-ssr
 .env.production.local
 
 # Supabase
-supabase/functions/*
-!supabase/functions/.gitkeep
+# supabase/functions/*
+# !supabase/functions/.gitkeep
